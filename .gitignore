@@ -1,0 +1,6 @@
+**/__pycache__/
+data/
+!data
+pickles/
+!pickles
+!pickles/precalc_tau_pkl
