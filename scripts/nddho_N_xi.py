@@ -166,9 +166,6 @@ for pw in pws:
                         f = cgram_dict["f"]
                         colossogram = cgram_dict["colossogram"]
                         cgram_dict['pw']=pw
-                        # plt.close('all')
-                        # pc.plot_colossogram(xis_s, f, colossogram, pw=pw)
-                        # plt.show()
                         N_xi, N_xi_dict = pc.get_N_xi(
                             cgram_dict,
                             f_d,
