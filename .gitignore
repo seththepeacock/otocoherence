@@ -1,6 +1,11 @@
+# Ignore all contents of data
+data/*
+pickles/*
+
+# Except these
+!data/data.txt
+!pickles/pickles.txt
+!pickles/precalc_taus.pkl
+
+# Ignore Python caches
 **/__pycache__/
-data/
-!data
-pickles/
-!pickles
-!pickles/precalc_tau_pkl
