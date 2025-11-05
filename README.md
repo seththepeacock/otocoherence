@@ -14,5 +14,5 @@ All analysis code is in `/scripts`. `soae_N_xi.py` will analyze all SOAE wavefor
 
 ## Links
 - [Preprint](https://seththepeacock.github.io)
-- [SOAE Data](https://www.dropbox.com/scl/fo/x6svdaiyrwiej4gqky97w/AGTnF23tGA1Mqh_9Amqrceo?rlkey=2xkgmifr3981njduacx2z7e8e&st=ciuzk2t0&dl=0)
 - [phaseco](https://seththepeacock.github.io/phaseco/)
+- [SOAE Data](https://www.dropbox.com/scl/fo/x6svdaiyrwiej4gqky97w/AGTnF23tGA1Mqh_9Amqrceo?rlkey=2xkgmifr3981njduacx2z7e8e&st=ciuzk2t0&dl=0)

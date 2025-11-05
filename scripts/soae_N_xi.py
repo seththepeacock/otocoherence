@@ -202,7 +202,7 @@ for filter_meth in filter_meths:
                         hop_cgram = hop
 
                         # This function will load the pickle if it exists or calculate it (and pickle it) if not
-                        cgram = load_calc_colossogram(
+                        cgram_dict = load_calc_colossogram(
                             **{
                                 "wf": wf,
                                 "wf_idx": wf_idx,
@@ -231,26 +231,26 @@ for filter_meth in filter_meths:
                                 "nbacf":nbacf,
                             }
                         )
-                        if "plot_what_we_got" in cgram.keys():
+                        if "plot_what_we_got" in cgram_dict.keys():
                             print("NO PICKLE, SKIPPING")
                             continue
-                        if "only_calc_new_coherences" in cgram.keys():
+                        if "only_calc_new_coherences" in cgram_dict.keys():
                             print("ALREADY CALCULATED, SKIPPING")
                             continue
 
                         # Load everything that wasn't explicitly "saved" in the filename
-                        colossogram = cgram["colossogram"]
-                        wf_pp = cgram[
+                        colossogram = cgram_dict["colossogram"]
+                        wf_pp = cgram_dict[
                             "wf_pp"
                         ]  # this is now no longer None and we can use it next time (unless it gets reset because we're not doing anything else with this subject)
-                        win_meth_str = cgram["win_meth_str"]
-                        f = cgram[
+                        win_meth_str = cgram_dict["win_meth_str"]
+                        f = cgram_dict[
                             "f"
                         ]  # This will be just f0s if they were passed in
-                        xis_s = cgram["xis_s"]
-                        N_pd_min = cgram["N_pd_min"]
-                        N_pd_max = cgram["N_pd_max"]
-                        hop = cgram["hop"]
+                        xis_s = cgram_dict["xis_s"]
+                        N_pd_min = cgram_dict["N_pd_min"]
+                        N_pd_max = cgram_dict["N_pd_max"]
+                        hop = cgram_dict["hop"]
 
                         # Handle transpose from old way
                         if colossogram.shape[0] != xis_s.shape[0]:
@@ -316,7 +316,7 @@ for filter_meth in filter_meths:
                             plt.close("all")
                             plt.figure(figsize=(15, 5))
                             pc.plot_colossogram(
-                                cgram,
+                                cgram_dict,
                                 cmap="bone_r",
                             )
                             plt.title(rf"Colossogram")
@@ -512,7 +512,7 @@ for filter_meth in filter_meths:
 
                                         # Fit peak
                                         N_xi, N_xi_dict = pc.get_N_xi(
-                                            cgram,
+                                            cgram_dict,
                                             f0,
                                             decay_start_limit_xi_s=decay_start_limit_xi_s,
                                             mse_thresh=mse_thresh,
