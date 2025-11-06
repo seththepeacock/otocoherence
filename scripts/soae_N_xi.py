@@ -9,9 +9,9 @@ import phaseco as pc
 "PARAMETERS"
 # Loop parameters
 all_species = [
+    "Tokay",
     "Anole",
     "Owl",
-    "Tokay",
     "Human",
 ]
 

@@ -5,7 +5,8 @@ from phaseco import *
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
-for species in ['Anole', 'Human', 'Owl', 'Tokay',]:
+# for species in ['Anole', 'Human', 'Owl', 'Tokay',]:
+for species in ['Tokay']:
     for wf_idx in range(4):
         "Get waveform"
         wf, wf_fn, fs, good_peak_freqs, bad_peak_freqs = get_wf(species=species, wf_idx=wf_idx)
@@ -14,7 +15,7 @@ for species in ['Anole', 'Human', 'Owl', 'Tokay',]:
         wf = crop_wf(wf, fs, wf_len_s)
 
         "PARAMETERS"
-        plot = 0
+        plot = 1
         check_guesses = 1
         tau = 2**14
         win_type = 'hann'
@@ -57,6 +58,7 @@ for species in ['Anole', 'Human', 'Owl', 'Tokay',]:
             plt.plot(f, psd_db, label='PSD', c='k')
             
         for kind, c, peak_guesses in zip(['good', 'bad'], ['g', 'r'], [good_peak_freqs, bad_peak_freqs]):
+            peak_guesses = peak_guesses
             picked_peaks = []
             if kind == 'good':
                 print("Good peak freqs:")

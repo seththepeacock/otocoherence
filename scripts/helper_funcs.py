@@ -154,9 +154,6 @@ def load_calc_colossogram(
     return cgram_dict
 
 
-
-
-
 def get_wf(wf_fn=None, species=None, wf_idx=None):
     if wf_fn is None:
         if species is None or wf_idx is None:
@@ -179,20 +176,14 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         fs = 48000
     elif species == "V Sim Human":
         fs = 40000
+    elif species == "Tokay":
+        fs = 50000
     else:
         fs = 44100
 
     # Get peak list
     match wf_fn:
-        # Vaclav's Human
-        case "longMCsoaeL1_20dBdiff100dB_InpN1InpYN0gain85R1rs43.mat":
-            good_peak_freqs = [
-                1160,
-                1240,
-                1519,
-                1975,
-            ]
-            bad_peak_freqs = []
+
         # Anoles
         case "AC6rearSOAEwfB1.mat":  # 0
             good_peak_freqs = [
@@ -212,7 +203,12 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
             bad_peak_freqs = []
 
         case "ACsb24rearSOAEwfA1.mat":  # 2
-            good_peak_freqs = [1811, 2178, 3112, 3478,]
+            good_peak_freqs = [
+                1811,
+                2178,
+                3112,
+                3478,
+            ]
             bad_peak_freqs = []
 
         case "ACsb30learSOAEwfA2.mat":  # 3
@@ -272,8 +268,7 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
                 8452,
                 9026,
             ]
-            bad_peak_freqs = [
-            ]
+            bad_peak_freqs = []
 
         case "Owl7L1.mat":  # 1
             good_peak_freqs = [
@@ -282,9 +277,7 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
                 8836,
                 9258,
             ]
-            bad_peak_freqs = [
-                
-            ]
+            bad_peak_freqs = []
         case "TAG6rearSOAEwf1.mat":  # 2
             good_peak_freqs = [
                 5626,
@@ -306,34 +299,34 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         # Tokays
         case "tokay_GG1rearSOAEwf.mat":  # 0
             good_peak_freqs = [
-                1184,
-                1569,
-                3217,
-                3714,
+                1343,
+                1779,
+                3650,
+                4211,
             ]
             bad_peak_freqs = []
         case "tokay_GG2rearSOAEwf.mat":  # 1
             good_peak_freqs = [
-                1192,
-                1567,
-                3182,
-                3876,
+                1364,
+                1776,
+                3607,
+                4395,
             ]
             bad_peak_freqs = []
         case "tokay_GG3rearSOAEwf.mat":  # 2
             good_peak_freqs = [
-                1109,
-                1620,
-                2277,
-                3133,
+                1257,
+                1837,
+                2579,
+                3568,
             ]
             bad_peak_freqs = []
         case "tokay_GG4rearSOAEwf.mat":  # 3
             good_peak_freqs = [
-                1104,
-                2288,
-                2845,
-                3157,
+                1251,
+                2591,
+                3217,
+                3583,
             ]
             bad_peak_freqs = []
 
@@ -366,6 +359,7 @@ def crop_wf(wf, fs, wf_len_s):
     wf_cropped = wf[start : start + desired_wf_len]
 
     return wf_cropped
+
 
 def scale_wf_long_way(wf):
     # First, undo the mic amplifier gain
@@ -435,11 +429,7 @@ def get_fn(species, idx):
         case "V Sim Human":
             return "longMCsoaeL1_20dBdiff100dB_InpN1InpYN0gain85R1rs43.mat"
         case _:
-            raise ValueError(
-                "Species must be 'Anole', 'Human', 'Tokay', or 'Owl'!"
-            )
-
-
+            raise ValueError("Species must be 'Anole', 'Human', 'Tokay', or 'Owl'!")
 
 
 def get_precalc_tau_from_bw(bw, fs, win_type, pkl_folder):
@@ -722,5 +712,3 @@ def get_hop_from_hop_thing(hop_thing, tau, fs):
             if not isinstance(hop, int):
                 raise ValueError("You passed in hop as an 'int' but it's not an int...")
     return hop
-
-
