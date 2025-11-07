@@ -24,7 +24,7 @@ def load_calc_colossogram(
     fs,
     filter_meth,
     pkl_folder,
-    pw,
+    mode,
     tau,
     nfft,
     xi_min_s,
@@ -46,6 +46,10 @@ def load_calc_colossogram(
     if f0s is not None:
         f0s = np.array(f0s)
 
+    # Handle case where hop is a prop of tau
+    if hop < 1:
+        hop = int(round(hop * tau))
+
     # Build strings
     filter_str = get_filter_str(filter_meth)
     win_meth_str = pc.get_win_meth_str(win_meth)
@@ -60,14 +64,12 @@ def load_calc_colossogram(
     nfft_str = "" if nfft is None else f"nfft={nfft}, "
     delta_xi_str = "" if xi_min_s == 0.001 else f"delta_xi={xi_min_s*1000:.1f}ms, "
     demean_str = "DM=True, " if demean else ""
-    if hop < 1:
-        hop = int(round(hop * tau))
-    pkl_fn_id = rf"{species} {wf_idx}, PW={pw}, {win_meth_str}, hop={hop}, tau={tau}, {filter_str}, xi_max={xi_max_s*1000:.0f}ms, {nbacf_str}{delta_xi_str}{nfft_str}{f0s_str}{const_N_pd_str}{N_bs_str}{demean_str}wf_len={wf_len_s}s, wf={wf_fn.split('.')[0]}"
+
+    
+    
+    pkl_fn_id = rf"{species} {wf_idx}, mode={mode}, {win_meth_str}, hop={hop}, tau={tau}, {filter_str}, xi_max={xi_max_s*1000:.0f}ms, {nbacf_str}{delta_xi_str}{nfft_str}{f0s_str}{const_N_pd_str}{N_bs_str}{demean_str}wf_len={wf_len_s}s, wf={wf_fn.split('.')[0]}"
     pkl_fn = f"{pkl_fn_id} (Colossogram).pkl"
 
-    # Convert to samples
-    xi_min = round(xi_min_s * fs)
-    xi_max = round(xi_max_s * fs)
 
     # First, try to load
     pkl_fp = os.path.join(pkl_folder, pkl_fn)
@@ -120,7 +122,7 @@ def load_calc_colossogram(
             tau=tau,
             nfft=nfft,
             win_meth=win_meth,
-            pw=pw,
+            mode=mode,
             const_N_pd=const_N_pd,
             N_bs=N_bs,
             f0s=f0s,
@@ -142,13 +144,7 @@ def load_calc_colossogram(
     cgram_dict.update({"wf_pp": wf_pp})
 
     # Add powerweights
-    cgram_dict.update({"pw": pw})
-
-    # Check if we need to correct for old squared definition of PW
-    if pw and "unsquared_pw" not in cgram_dict.keys():
-        print("Here's an older dict that squared the powerweights, so sqrting now!")
-        unsquared_colossogram = np.sqrt(cgram_dict["colossogram"])
-        cgram_dict["colossogram"] = unsquared_colossogram
+    cgram_dict.update({"mode": mode})
 
     # We now have colossogram_dict either from a saved pickle (new or old) or from the calculation; return it!
     return cgram_dict
@@ -240,7 +236,7 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
             bad_peak_freqs = [
                 3400,
                 8675,
-            ]  # Note 8675 is only bad in PW=False, it's good in PW=True
+            ]  # Note 8675 is only bad in C_xi^phi, it's good in C_xi^P
 
         case "LSrearSOAEwf1.mat":  # 2
             good_peak_freqs = [

@@ -9,8 +9,8 @@ import phaseco as pc
 "PARAMETERS"
 # Loop parameters
 all_species = [
-    "Tokay",
     "Anole",
+    "Tokay",
     "Owl",
     "Human",
 ]
@@ -37,7 +37,7 @@ scale = True  # Scale the waveform for dB SPL (shouldn't have an effect outisde 
 demean = True  # subtract mean
 
 # Coherence Parameters
-pws = [False]
+modes = ['phi']
 rho_bw_hops = [
     (1.0, 50, ("s", 0.01)),
     (None, "species", ("s", 0.01)),
@@ -126,7 +126,7 @@ soae_pkl_folder = os.path.join(pkl_folder, "soae")
 
 "Loops"
 for filter_meth in filter_meths:
-    for pw in pws:
+    for mode in modes:
         for rho, bw_type, hop_thing in rho_bw_hops:
             # Handle windowing method
             if rho is not None:
@@ -213,7 +213,7 @@ for filter_meth in filter_meths:
                                 "fs": fs,
                                 "filter_meth": filter_meth,
                                 "pkl_folder": soae_pkl_folder,
-                                "pw": pw,
+                                "mode": mode,
                                 "tau": tau,
                                 "nfft": nfft,
                                 "xi_min_s": xi_min_s,
@@ -271,7 +271,7 @@ for filter_meth in filter_meths:
 
                         "Make more directories"
                         bw_str = f"BW=Species" if bw_type == "species" else f"BW={bw}Hz"
-                        relevant_comp_str = rf"PW={pw}, {bw_str}, {win_meth_str}"
+                        relevant_comp_str = rf"{win_meth_str}, {bw_str}, Mode={mode}"
                         results_folder = os.path.join(
                             "results","soae",
                             rf"SOAE Results ({relevant_comp_str})",
@@ -281,7 +281,6 @@ for filter_meth in filter_meths:
                         "Plots"
                         # Build plot-related strings
                         N_bs_str = "" if N_bs == 0 else f"N_bs={N_bs}, "
-                        pw_str = f"{pw}" if not wa or not pw else "WA"
                         const_N_pd_str = "" if const_N_pd else "N_pd=max, "
                         f0s_str = (
                             ""
@@ -306,10 +305,11 @@ for filter_meth in filter_meths:
                             if bw_type != "species"
                             else f"Hop=1"
                         )
+  
                         # Build IDs
-                        plot_fn_id = rf"{species} {wf_idx}, {bw_str}, hop={hop:.0f}, PW={pw_str}, {win_meth_str}, {filter_str}, xi_max={xi_max_s*1e3:.0f}ms, {delta_xi_str}{nfft_str}{f0s_str}{const_N_pd_str}{N_bs_str}wf_len={wf_len_s}s, wf={wf_fn.split('.')[0]}"
-                        method_id = rf"[$\tau$={(tau/fs)*1e3:.2f}ms]   [PW={pw}]   [{win_meth_str}]   [{hop_str}]   [{N_pd_str}]   [nfft={nfft}]"
+                        method_id = rf"[$\tau$={(tau/fs)*1e3:.2f}ms]   [{pc.get_mode_str(mode)}]   [{win_meth_str}]   [{hop_str}]   [{N_pd_str}]   [nfft={nfft}]"
                         suptitle = rf"[{species} {wf_idx}]   [{wf_fn}]   [HPBW={bw}Hz]   {method_id}   [{filter_str}]"
+                        plot_fn_id = rf"{species} {wf_idx}, {bw_str}, hop={hop:.0f}, mode={mode}, {win_meth_str}, {filter_str}, xi_max={xi_max_s*1e3:.0f}ms, {delta_xi_str}{nfft_str}{f0s_str}{const_N_pd_str}{N_bs_str}wf_len={wf_len_s}s, wf={wf_fn.split('.')[0]}"
                         f_khz = f / 1e3
                         if output_colossograms:
                             print("Plotting Colossogram")

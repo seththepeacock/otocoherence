@@ -20,12 +20,12 @@ f_ds = [1000, 2000, 3000]
 qs = [25, 30, 35, 40, 45, 50]
 
 # Coherence params
-pws = [False]
+modes = ['phi']
 rho_bw_hops = [(1.0, 50, ('s', 0.01)), (None, 'gamma', ('int', 1))] # (rho, bandwidth, (hop_units, hop))
 win_type = 'flattop'
 demean = True
 
-colors = get_colors('good')
+colors = np.concat((get_colors('good'), get_colors('bad'), (get_colors('good'))))
 
 # Global folders
 pkl_folder = os.path.join('pickles', 'NDDHO')
@@ -41,7 +41,7 @@ output_spreadsheet = 1
 plot_scatter = 1
 
 "Generate and calculate autocoherence of NDDHO for various Q and f_d"
-for pw in pws:
+for mode in modes:
     for rho, bw_type, hop_thing in rho_bw_hops:
         for A_const in A_consts:
             # Spreadsheet starts now
@@ -66,7 +66,7 @@ for pw in pws:
                     # Get strings
                     win_meth_str = pc.get_win_meth_str(win_meth)
                     bw_str = "BW=0.5gamma" if bw_type == 'gamma' else f"BW={bw_type}Hz"
-                    relevant_comp_str = f"PW={pw}, {win_meth_str}, {bw_str}, A_const={A_const}"
+                    relevant_comp_str = f"{win_meth_str}, {bw_str}, Mode={mode}, A_const={A_const}"
                     
                     # Start plot
                     N_cols = int(round((len(qs) / 2))) if len(qs) > 1 else 1
@@ -120,7 +120,7 @@ for pw in pws:
                         )
                         nfft_str = "" if nfft is None else f"nfft={nfft}, "
                         delta_xi_str = "" if delta_xi_s == 0.001 else f"delta_xi={delta_xi_s*1000:.2g}ms, "
-                        cgram_id = rf"PW={pw}, {win_meth_str}, hop={hop}, tau={tau}, xi_max={xi_max_s*1000:.0f}ms, DM={demean}, {delta_xi_str}{nfft_str}{f0s_str}{const_N_pd_str}"
+                        cgram_id = rf"mode={mode}, {win_meth_str}, hop={hop}, tau={tau}, xi_max={xi_max_s*1000:.0f}ms, DM={demean}, {delta_xi_str}{nfft_str}{f0s_str}{const_N_pd_str}"
                         cgram_fn = f"{cgram_id}, {wf_id} [COLOSSOGRAM].pkl"
                         cgram_fp = os.path.join(pkl_folder, cgram_fn)
 
@@ -153,7 +153,7 @@ for pw in pws:
                                 hop=hop,
                                 tau=tau,
                                 win_meth=win_meth,
-                                pw=pw,
+                                mode=mode,
                                 nfft=nfft,
                                 const_N_pd=const_N_pd,
                                 f0s=f0s_cgram,
@@ -165,7 +165,7 @@ for pw in pws:
                         xis_s = cgram_dict["xis_s"]
                         f = cgram_dict["f"]
                         colossogram = cgram_dict["colossogram"]
-                        cgram_dict['pw']=pw
+                        cgram_dict['mode']=mode
                         N_xi, N_xi_dict = pc.get_N_xi(
                             cgram_dict,
                             f_d,
@@ -215,7 +215,7 @@ for pw in pws:
                 # Outside of q/iter loop now (but inside f0 loop)
                 if gen_plots:
                     plt.suptitle(
-                        rf"f0={f_d}Hz, PW={pw}, A_const={A_const}, {win_meth_str}, hop={hop/fs*1000:.1f}ms, tau={(tau/fs)*1000:.0f}ms, wf_len={wf_len_s}s, fs={fs}Hz",
+                        rf"f0={f_d}Hz, {pc.get_mode_str(mode)}, A_const={A_const}, {win_meth_str}, hop={hop/fs*1000:.1f}ms, tau={(tau/fs)*1000:.0f}ms, wf_len={wf_len_s}s, fs={fs}Hz",
                         fontsize=fontsize,
                     )
                     plt.tight_layout()
@@ -231,7 +231,7 @@ for pw in pws:
             if output_spreadsheet:
                 # Save parameter data as xlsx
                 df_fitted_params = pd.DataFrame(rows)
-                spreadsheet_fn = os.path.join(results_folder, rf"NDDHO Q N_xi Data [{relevant_comp_str}].xlsx")
+                spreadsheet_fn = os.path.join(results_folder, rf"NDDHO N_xi Data [{relevant_comp_str}].xlsx")
                 print(f"Saving to {spreadsheet_fn}")
                 df_fitted_params.to_excel(spreadsheet_fn, index=False)
 
@@ -263,7 +263,7 @@ if plot_scatter:
 
     for A_const in A_consts:
         for rho, bw_type, hop_thing in rho_bw_hops:
-            for pw in pws:
+            for mode in modes:
                 plt.close('all')
                 plt.figure(figsize=fig_size)
                 for (f_d_i, f_d), color in zip(enumerate(f_ds), colors[0 : len(f_ds)]):
@@ -275,11 +275,11 @@ if plot_scatter:
                     
                     win_meth_str = pc.get_win_meth_str(win_meth)
                     bw_str = "BW=0.5gamma" if bw_type == 'gamma' else f"BW={bw_type}Hz"
-                    relevant_comp_str = f"PW={pw}, {win_meth_str}, {bw_str}, A_const={A_const}"
+                    relevant_comp_str = f"{win_meth_str}, {bw_str}, Mode={mode}, A_const={A_const}"
 
                     results_folder = os.path.join('results', 'nddho', f'NDDHO Results [{relevant_comp_str}]')
                     os.makedirs(results_folder, exist_ok=True)
-                    spreadsheet_fp = os.path.join(results_folder, f"NDDHO Q N_xi Data [{relevant_comp_str}].xlsx")
+                    spreadsheet_fp = os.path.join(results_folder, f"NDDHO N_xi Data [{relevant_comp_str}].xlsx")
                     # print("ANALYSIS FROM ", spreadsheet_fp)
                     df = pd.read_excel(spreadsheet_fp)
                     num_iters = df["Iter"].max() + 1
