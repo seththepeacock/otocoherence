@@ -5,8 +5,7 @@ from phaseco import *
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
-# for species in ['Anole', 'Human', 'Owl', 'Tokay',]:
-for species in ['Tokay']:
+for species in ['Anole', 'Human', 'Owl', 'Tokay',]:
     for wf_idx in range(4):
         "Get waveform"
         wf, wf_fn, fs, good_peak_freqs, bad_peak_freqs = get_wf(species=species, wf_idx=wf_idx)
@@ -15,9 +14,10 @@ for species in ['Tokay']:
         wf = crop_wf(wf, fs, wf_len_s)
 
         "PARAMETERS"
-        plot = 1
+        plot = 0
         check_guesses = 1
         tau = 2**14
+        hop = 2**13
         win_type = 'hann'
         # Everyone can use the same tau; slightly less finegrained for owl but it's already way oversampled
         
@@ -33,7 +33,7 @@ for species in ['Tokay']:
         # Get peak bin indices
         fig_folder = r'N_xi Fits/Auto Peak Picks'
         fn_id = rf"{species} {wf_idx}, $\tau={tau / fs *1000:.0f}$ms, wf_length={wf_len_s:.3f}s"
-        f, psd = pc.get_welch(wf=wf, fs=fs, tau=tau, win=win_type)
+        f, psd = pc.get_welch(wf=wf, fs=fs, tau=tau, hop=hop, win=win_type)
         
         # Guesses
         peak_guesses = np.concatenate((good_peak_freqs, bad_peak_freqs))

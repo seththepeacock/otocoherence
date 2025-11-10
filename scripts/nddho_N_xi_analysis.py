@@ -280,7 +280,6 @@ if plot_scatter:
                     results_folder = os.path.join('results', 'nddho', f'NDDHO Results [{relevant_comp_str}]')
                     os.makedirs(results_folder, exist_ok=True)
                     spreadsheet_fp = os.path.join(results_folder, f"NDDHO N_xi Data [{relevant_comp_str}].xlsx")
-                    # print("ANALYSIS FROM ", spreadsheet_fp)
                     df = pd.read_excel(spreadsheet_fp)
                     num_iters = df["Iter"].max() + 1
                     qs = df["Q"].unique()
@@ -297,7 +296,7 @@ if plot_scatter:
                             T_xi = row["T_xi"].iloc[0]
                             mse = row["MSE"].iloc[0]
                             # Only add one label per f0
-                            label = f"UCF={f_d}Hz" if q_k == 0 and iter == 0 else None
+                            label = f"f_d={f_d}Hz" if q_k == 0 and iter == 0 else None
 
                             # N_xi vs gamma Plot
                             # plt.subplot(nrows, ncols, f0_i + 1)

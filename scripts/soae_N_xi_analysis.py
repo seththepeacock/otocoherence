@@ -20,16 +20,7 @@ wf_idxs = range(4)
 
 
 # WF pre-processing parameters
-filter_meths = [
-    # {
-    #     "type": "kaiser",
-    #     "cf": 300,
-    #     "df": 50,
-    #     "rip": 100,
-    # },
-    None,
-]
-# cf=cutoff freq, df=transition band width, rip=max allowed ripple (in dB)
+filter_meths = [None]
 
 wf_len_s = 60  # Will crop waveform to this length (in seconds)
 scale = True  # Scale the waveform for dB SPL (shouldn't have an effect outisde of vertical shift on PSD;
