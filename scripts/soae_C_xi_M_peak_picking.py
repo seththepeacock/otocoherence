@@ -7,7 +7,7 @@ import scipy.signal as signal
 import pandas as pd
 
 # Output params
-show_plots = 0
+show_plots = 1
 output_plots = 1
 output_spreadsheet = 1
 
