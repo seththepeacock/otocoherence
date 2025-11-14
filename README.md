@@ -1,6 +1,6 @@
 # otocoherence
 
-Analysis code for "Spontaneous Otocoherence in the Active Ear." (Peacock et al. 2025).
+Analysis code for "Spontaneous Otocoherence of the Active Ear." (Peacock et al. 2025).
 
 ## Dependencies
 The bulk of the calculations rely on our package [phaseco](https://seththepeacock.github.io/phaseco/).
