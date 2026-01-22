@@ -1,0 +1,2 @@
+cd ARO\dynamic_windowing_fig
+pdftocairo -jpeg -r 500 dynamic_windowing.pdf

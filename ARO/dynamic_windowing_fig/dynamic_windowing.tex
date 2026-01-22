@@ -1,0 +1,85 @@
+\documentclass{article}
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{amssymb}
+\usepackage{hyperref}
+\usepackage{tikz,pgfplots}
+\usepackage{bookmark}
+\pgfplotsset{compat=1.18}
+% \usetikzlibrary{external}
+% \tikzexternalize % activate!
+
+\usepackage[inner=2.5cm,outer=2.5cm,top=2.5cm,bottom=2.5cm]{geometry}
+
+\title{Spontaneous otocoherence of the active ear \\
+Supplemental Information}
+\author{Seth N.S. Peacock, Václav Vencovský, Rebecca E. Whiley, \\ Natasha Mhatre, Christopher Bergevin}
+\date{}
+
+
+
+
+
+
+\begin{document}
+
+\begin{figure}
+\centering
+\begin{tikzpicture}
+  \begin{axis}[
+      width=13cm,
+      height=6cm,
+      xlabel={Time (s)},
+      ylabel={},
+      axis lines=bottom,
+      xmin=0, xmax=1,
+      ymin=-1.2, ymax=1.4,
+      samples=400,
+      domain=0:1,
+      legend style={at={(0.98,0.95)},anchor=north east, font=\small}
+    ]
+
+    % 1. Noisy arbitrary signal
+    \addplot[blue, thick] {0.1*sin(deg(2*pi*20*x)) + 0.7*rand};
+    % \addlegendentry{Signal};
+
+    % 2. Rectangular windows — do not affect cycle/legend
+    \addplot[draw=none, fill=red!20, opacity=0.5, domain=0.15:0.45, forget plot] {1.8} \closedcycle;
+    \addplot[draw=none, fill=green!20, opacity=0.5, domain=0.267:0.567, forget plot] {1.8} \closedcycle;
+
+    \node at (axis cs:0.28,1.2) {\small $\phi(t)$};
+    \node at (axis cs:0.42,1.2) {\small $\phi(t+\xi)$};
+
+    % 3. Gaussians
+    \addplot[red, thick, domain=0.15:0.45, samples=400]
+      {exp(-0.5*((x-0.3)/0.05)^2)};
+    % \addlegendentry{$w_\xi[n]$ for $X[n_j, \omega]$};
+
+    \addplot[green!60!black, thick, domain=0.267:0.567, samples=400]
+      {exp(-0.5*((x-0.417)/0.05)^2)};
+    % \addlegendentry{$w_\xi[n]$ for $X_\xi[n_j, \omega]$};
+
+    % 4. Half-width arrows and labels
+    \draw[<->, line width=1pt, red!80!black] (axis cs:0.24,0.5) -- (axis cs:0.358,0.5);
+    \node[red!80!black, above] at (axis cs:0.3,0.5) {\footnotesize $\xi$};
+
+    % \draw[<->, line width=1.5pt, black] (axis cs:0.457,0.5) -- (axis cs:0.575,0.5);
+    \draw[<->, line width=1pt, green!50!black] (axis cs:0.359,0.5) -- (axis 
+    cs:0.475,0.5);
+    
+    \node[green!50!black, above] at (axis cs:0.42,0.5) {\footnotesize $\xi$};
+
+  \end{axis}
+  % Can't figure out this error, but it works so *shrug*
+\end{tikzpicture}
+\end{figure}
+
+
+
+
+\end{document}
+
+
+
+

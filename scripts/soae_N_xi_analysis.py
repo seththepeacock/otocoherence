@@ -30,8 +30,8 @@ demean = True  # subtract mean
 # Coherence Parameters
 modes = ['phi']
 rho_bw_hops = [
-    (1.0, 50, ("s", 0.01)),
     (None, "species", ("s", 0.01)),
+    (1.0, 50, ("s", 0.01)),
 ]
 wa = False
 const_N_pd = 0
@@ -44,6 +44,8 @@ tau_psd = nfft
 hop_psd = 0.5 # Half of tau
 win_type_psd = "hann"
 
+# PSD Lorentz parameters
+tau_s_lorentz = 0.35 # In seconds so the PSD has the same length windows in seconds across species
 
 # Options for iterating through subjects
 force_recalc_colossogram = 0
@@ -169,6 +171,9 @@ for filter_meth in filter_meths:
                         # Check we haven't exceeded our max set by nfft
                         if tau > nfft:
                             raise ValueError(f"Can't have tau = {tau} > {nfft} = nfft!")
+                        
+                        # Get tau for the Lorentz PSD fitting
+                        tau_lorentz = int(round(tau_s_lorentz * fs))
 
                         # Process species-specific params
                         decay_start_limit_xi_s = 0.05 if species == "Human" else 0.015
@@ -338,7 +343,7 @@ for filter_meth in filter_meths:
                         # See if we need to preprocess waveform
                         if wf_pp is None and (output_peak_picks or output_filtered_peaks):
                             wf = crop_wf(wf, fs, wf_len_s)
-                            wf = filter_wf(wf, fs, filter_meth, species)
+                            wf = filter_wf(wf, fs, filter_meth)
                             if species in ["Anole", "Human"] and scale:  # Scale wf
                                 wf = scale_wf(wf, species)
                             if demean:
@@ -491,7 +496,7 @@ for filter_meth in filter_meths:
                                     if output_filtered_peaks and not zoom_to_fit:
                                         filtered_peak_fig = plt.figure(figsize=(15, 10))
                                         plt.suptitle(
-                                            rf"{species} {wf_idx}    [$BW_{{\text{{{species}}}}}$={bw}]   [$\tau_\text{{PSD}}$={tau_psd}, {win_type_psd.capitalize()}]   [H={hop_psd}$\tau$]"
+                                            rf"{species} {wf_idx}    [$BW_{{\text{{{species}}}}}$={bw}]   [$\tau_\text{{PSD}}$={tau_s_lorentz*1000:.0f}ms, {win_type_psd.capitalize()}]   [H={hop_psd}$\tau$]"
                                         )
                                         # Then switch back
                                         plt.figure(decay_fig)
@@ -551,29 +556,30 @@ for filter_meth in filter_meths:
                                             wf_filtered = convolve(wf, kernel, mode="valid", method="fft") / np.sum(
                                                 win
                                             )
-                                            f_psd, psd_filt = get_welch(
+                                            
+                                            f_psd_filt, psd_filt = get_welch(
                                                 wf_filtered,
                                                 fs,
-                                                tau=tau_psd,
+                                                tau=tau_lorentz,
                                                 hop=hop_psd,
                                                 win=win_type_psd,
                                                 realfft=False,
                                             )
-                                            psd = get_welch(
-                                                wf, fs, tau=tau_psd, hop=hop_psd, win=win_type_psd, realfft=False
+                                            psd_unfilt = get_welch(
+                                                wf, fs, tau=tau_lorentz, hop=hop_psd, win=win_type_psd, realfft=False
                                             )[1]
 
                                             xmin, xmax = f0_exact_bin - bw * 2, f0_exact_bin + bw * 2
-                                            xmin_idx, xmax_idx = np.argmin(np.abs(f_psd - xmin)), np.argmin(
-                                                np.abs(f_psd - xmax)
+                                            xmin_idx, xmax_idx = np.argmin(np.abs(f_psd_filt - xmin)), np.argmin(
+                                                np.abs(f_psd_filt - xmax)
                                             )
-                                            f_psd_crop, psd_crop, psd_filt_crop = (
-                                                f_psd[xmin_idx:xmax_idx],
-                                                psd[xmin_idx:xmax_idx],
+                                            f_psd_crop, psd_unfilt_crop, psd_filt_crop = (
+                                                f_psd_filt[xmin_idx:xmax_idx],
+                                                psd_unfilt[xmin_idx:xmax_idx],
                                                 psd_filt[xmin_idx:xmax_idx],
                                             )
                                             plt.plot(f_psd_crop, psd_filt_crop, label="Filtered", color=color)
-                                            plt.plot(f_psd_crop, psd_crop, label="Unfiltered", color="k")
+                                            plt.plot(f_psd_crop, psd_unfilt_crop, label="Unfiltered", color="k")
                                             plt.ylabel(f"PSD")
                                             plt.axvline(x=f0_exact_bin - bw / 2, color="g")
                                             plt.axvline(x=f0_exact_bin + bw / 2, color="g")
