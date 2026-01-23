@@ -30,6 +30,8 @@ demean = True  # subtract mean
 # Coherence Parameters
 modes = ['phi']
 rho_bw_hops = [
+    (1.0, 100, ("s", 0.01)),
+    (1.0, 150, ("s", 0.01)),
     (None, "species", ("s", 0.01)),
     (1.0, 50, ("s", 0.01)),
 ]
