@@ -23,17 +23,20 @@ wf_idxs = range(4)
 filter_meths = [None]
 
 wf_len_s = 60  # Will crop waveform to this length (in seconds)
-scale = True  # Scale the waveform for dB SPL (shouldn't have an effect outisde of vertical shift on PSD;
+scale = True  # Scale the waveform for dB SPL (won't have an effect outisde of vertical shift on PSD;
 # only actually scales if we know the right scaling constant, which is only Anoles and Humans)
 demean = True  # subtract mean
 
 # Coherence Parameters
 modes = ['phi']
 rho_bw_hops = [
-    (1.0, 100, ("s", 0.01)),
-    (1.0, 150, ("s", 0.01)),
-    (None, "species", ("s", 0.01)),
-    (1.0, 50, ("s", 0.01)),
+    (1.0, 200, ("s", 0.01)),
+    (1.0, 250, ("s", 0.01)),
+    (1.0, 300, ("s", 0.01)),
+    # (None, "species", ("s", 0.01)),
+    # (1.0, 50, ("s", 0.01)),
+    # (1.0, 100, ("s", 0.01)),
+    # (1.0, 150, ("s", 0.01)),
 ]
 wa = False
 const_N_pd = 0
