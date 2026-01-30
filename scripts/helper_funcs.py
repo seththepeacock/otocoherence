@@ -189,20 +189,19 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         case "ACsb4rearSOAEwf1.mat":  # 1
             good_peak_freqs = [
                 966,
-                3023,
                 3152,
                 3954,
             ]
-            bad_peak_freqs = []
+            bad_peak_freqs = [3023,]
 
         case "ACsb24rearSOAEwfA1.mat":  # 2
             good_peak_freqs = [
-                1811,
+                
                 2178,
                 3112,
                 3478,
             ]
-            bad_peak_freqs = []
+            bad_peak_freqs = [1811,]
 
         case "ACsb30learSOAEwfA2.mat":  # 3
             good_peak_freqs = [
@@ -215,12 +214,12 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         # Humans
         case "ALrearSOAEwf1.mat":  # 0
             good_peak_freqs = [
-                2662,
                 2805,
                 2942,
                 3863,
             ]
             bad_peak_freqs = [
+                2662,
                 3219,
             ]
         case "JIrearSOAEwf2.mat":  # 1
@@ -249,9 +248,8 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
                 904,
                 1521,
                 2038,
-                2694,
             ]
-            bad_peak_freqs = []
+            bad_peak_freqs = [2694,]
 
         # Owls
         case "Owl2R1.mat":  # 0
@@ -308,12 +306,11 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
             bad_peak_freqs = []
         case "tokay_GG3rearSOAEwf.mat":  # 2
             good_peak_freqs = [
-                1257,
-                1837,
+                1257,   
                 2579,
                 3568,
             ]
-            bad_peak_freqs = []
+            bad_peak_freqs = [1837,]
         case "tokay_GG4rearSOAEwf.mat":  # 3
             good_peak_freqs = [
                 1251,
@@ -546,9 +543,6 @@ def get_hpbw(win_type, tau, fs, nfft=None):
     idx = np.where(win_psd <= target)[0][0]
     hpbw = rfftfreq(nfft, 1 / fs)[idx] * 2
     return hpbw
-
-
-# print(get_hpbw('flattop', 2**13, 44100))
 
 
 def get_tau_from_bw(hpbw, win_type, fs, nfft=2**25, verbose=False):
