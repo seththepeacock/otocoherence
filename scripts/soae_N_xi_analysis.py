@@ -28,14 +28,14 @@ scale = True  # Scale the waveform for dB SPL (won't have an effect outisde of v
 demean = True  # subtract mean
 
 # Coherence Parameters
-modes = ['phi']
+modes = ["phi"]
 rho_bw_hops = [
     # (1.0, 200, ("s", 0.01)),
     # (1.0, 300, ("s", 0.01)),
     # (None, "species", ("s", 0.01)),
+    (1.0, 100, ("s", 0.01)),
+    # (1.0, 150, ("s", 0.01)),
     # (1.0, 50, ("s", 0.01)),
-    # (1.0, 100, ("s", 0.01)),
-    (1.0, 150, ("s", 0.01)),
 ]
 wa = False
 const_N_pd = 0
@@ -45,11 +45,13 @@ nbacf = False
 
 # PSD Parameters
 tau_psd = nfft
-hop_psd = 0.5 # Half of tau
+hop_psd = 0.5  # Half of tau
 win_type_psd = "hann"
 
 # PSD Lorentz parameters
-tau_s_lorentz = 0.35 # In seconds so the PSD has the same length windows in seconds across species
+tau_s_lorentz = (
+    0.35  # In seconds so the PSD has the same length windows in seconds across species
+)
 
 # Options for iterating through subjects
 force_recalc_colossogram = 0
@@ -137,7 +139,7 @@ for filter_meth in filter_meths:
                 else:
                     print("Can't do filtered peaks for dynamic widnowing!")
                     output_filtered_peaks = 0
-                    
+
             for p in [0]:
                 # Initialize list for row dicts for xlsx file
                 rows = []
@@ -145,7 +147,7 @@ for filter_meth in filter_meths:
                     for wf_idx in wf_idxs:
                         wf_pp = None
                         xi_min_s = xi_min_ss[species]
-                        if bw_type == 'species':
+                        if bw_type == "species":
                             xi_min_s = 0.0005
                         # if species != 'Human' and win_meth['method'] == 'static':
                         #     xi_max_s = 0.05
@@ -154,8 +156,6 @@ for filter_meth in filter_meths:
                             bw = species_bws[species]
                         else:
                             bw = bw_type
-                        
-                        
 
                         "Get waveform"
                         wf, wf_fn, fs, good_peak_freqs, bad_peak_freqs = get_wf(
@@ -175,7 +175,7 @@ for filter_meth in filter_meths:
                         # Check we haven't exceeded our max set by nfft
                         if tau > nfft:
                             raise ValueError(f"Can't have tau = {tau} > {nfft} = nfft!")
-                        
+
                         # Get tau for the Lorentz PSD fitting
                         tau_lorentz = int(round(tau_s_lorentz * fs))
 
@@ -228,7 +228,7 @@ for filter_meth in filter_meths:
                                 "scale": scale,
                                 "N_bs": N_bs,
                                 "f0s": f0s_cgram,
-                                "nbacf":nbacf,
+                                "nbacf": nbacf,
                             }
                         )
                         if "plot_what_we_got" in cgram_dict.keys():
@@ -273,7 +273,8 @@ for filter_meth in filter_meths:
                         bw_str = f"BW=Species" if bw_type == "species" else f"BW={bw}Hz"
                         relevant_comp_str = rf"{win_meth_str}, {bw_str}, Mode={mode}"
                         results_folder = os.path.join(
-                            "results","soae",
+                            "results",
+                            "soae",
                             rf"SOAE Results ({relevant_comp_str})",
                         )
                         os.makedirs(results_folder, exist_ok=True)
@@ -305,7 +306,7 @@ for filter_meth in filter_meths:
                             if bw_type != "species"
                             else f"Hop=1"
                         )
-  
+
                         # Build IDs
                         method_id = rf"[$\tau$={(tau/fs)*1e3:.2f}ms]   [{pc.get_mode_str(mode)}]   [{win_meth_str}]   [{hop_str}]   [{N_pd_str}]   [nfft={nfft}]"
                         suptitle = rf"[{species} {wf_idx}]   [{wf_fn}]   [HPBW={bw}Hz]   {method_id}   [{filter_str}]"
@@ -345,7 +346,9 @@ for filter_meth in filter_meths:
                             if show_plots:
                                 plt.show()
                         # See if we need to preprocess waveform
-                        if wf_pp is None and (output_peak_picks or output_filtered_peaks):
+                        if wf_pp is None and (
+                            output_peak_picks or output_filtered_peaks
+                        ):
                             wf = crop_wf(wf, fs, wf_len_s)
                             wf = filter_wf(wf, fs, filter_meth)
                             if species in ["Anole", "Human"] and scale:  # Scale wf
@@ -354,7 +357,7 @@ for filter_meth in filter_meths:
                                 wf -= np.mean(wf)
                         else:
                             wf = wf_pp
-                            
+
                         if output_peak_picks:
                             print("Plotting Peak Picks")
 
@@ -505,7 +508,6 @@ for filter_meth in filter_meths:
                                         # Then switch back
                                         plt.figure(decay_fig)
 
-
                                     for f0, peak_idx, color, subplot_idx in zip(
                                         peak_freqs, peak_idxs, colors, [1, 2, 3, 4]
                                     ):
@@ -548,7 +550,9 @@ for filter_meth in filter_meths:
 
                                         # Fit peak in PSD domain
                                         if output_filtered_peaks and not zoom_to_fit:
-                                            print(f"Fitting filtered peak [{f0_exact_bin:.0f}Hz]")
+                                            print(
+                                                f"Fitting filtered peak [{f0_exact_bin:.0f}Hz]"
+                                            )
                                             plt.figure(filtered_peak_fig)
                                             plt.subplot(2, 2, subplot_idx)
                                             # Filter wf for a filtered wf equivalent to STFT bin with H=1
@@ -557,10 +561,10 @@ for filter_meth in filter_meths:
                                             omega_0_norm = f0_exact_bin * 2 * np.pi / fs
                                             n = np.arange(len(win))
                                             kernel = win * np.exp(1j * omega_0_norm * n)
-                                            wf_filtered = convolve(wf, kernel, mode="valid", method="fft") / np.sum(
-                                                win
-                                            )
-                                            
+                                            wf_filtered = convolve(
+                                                wf, kernel, mode="valid", method="fft"
+                                            ) / np.sum(win)
+
                                             f_psd_filt, psd_filt = get_welch(
                                                 wf_filtered,
                                                 fs,
@@ -570,27 +574,55 @@ for filter_meth in filter_meths:
                                                 realfft=False,
                                             )
                                             psd_unfilt = get_welch(
-                                                wf, fs, tau=tau_lorentz, hop=hop_psd, win=win_type_psd, realfft=False
+                                                wf,
+                                                fs,
+                                                tau=tau_lorentz,
+                                                hop=hop_psd,
+                                                win=win_type_psd,
+                                                realfft=False,
                                             )[1]
 
-                                            xmin, xmax = f0_exact_bin - bw * 2, f0_exact_bin + bw * 2
-                                            xmin_idx, xmax_idx = np.argmin(np.abs(f_psd_filt - xmin)), np.argmin(
-                                                np.abs(f_psd_filt - xmax)
+                                            xmin, xmax = (
+                                                f0_exact_bin - bw * 2,
+                                                f0_exact_bin + bw * 2,
                                             )
-                                            f_psd_crop, psd_unfilt_crop, psd_filt_crop = (
+                                            xmin_idx, xmax_idx = np.argmin(
+                                                np.abs(f_psd_filt - xmin)
+                                            ), np.argmin(np.abs(f_psd_filt - xmax))
+                                            (
+                                                f_psd_crop,
+                                                psd_unfilt_crop,
+                                                psd_filt_crop,
+                                            ) = (
                                                 f_psd_filt[xmin_idx:xmax_idx],
                                                 psd_unfilt[xmin_idx:xmax_idx],
                                                 psd_filt[xmin_idx:xmax_idx],
                                             )
-                                            plt.plot(f_psd_crop, psd_filt_crop, label="Filtered", color=color)
-                                            plt.plot(f_psd_crop, psd_unfilt_crop, label="Unfiltered", color="k")
+                                            plt.plot(
+                                                f_psd_crop,
+                                                psd_filt_crop,
+                                                label="Filtered",
+                                                color=color,
+                                            )
+                                            plt.plot(
+                                                f_psd_crop,
+                                                psd_unfilt_crop,
+                                                label="Unfiltered",
+                                                color="k",
+                                            )
                                             plt.ylabel(f"PSD")
-                                            plt.axvline(x=f0_exact_bin - bw / 2, color="g")
-                                            plt.axvline(x=f0_exact_bin + bw / 2, color="g")
+                                            plt.axvline(
+                                                x=f0_exact_bin - bw / 2, color="g"
+                                            )
+                                            plt.axvline(
+                                                x=f0_exact_bin + bw / 2, color="g"
+                                            )
                                             plt.xlabel("Frequency [Hz]")
                                             plt.title(f"{f0_exact_bin:.0f} Hz")
-                                            L_f0, L_gamma, L_amp, fitted_lorentz = fit_lorentzian(
-                                                f_psd_crop, psd_filt_crop
+                                            L_f0, L_gamma, L_amp, fitted_lorentz = (
+                                                fit_lorentzian(
+                                                    f_psd_crop, psd_filt_crop
+                                                )
                                             )
                                             plt.plot(
                                                 f_psd_crop,
@@ -604,7 +636,7 @@ for filter_meth in filter_meths:
                                                 "L_amp": L_amp,
                                                 "L_f0": L_f0,
                                             }
-                                        
+
                                             plt.legend(fontsize=6)
 
                                             # Switch back to decay fig
@@ -614,13 +646,14 @@ for filter_meth in filter_meths:
                                         if (
                                             good_peaks
                                             and output_spreadsheet
-                                            and not zoom_to_fit # this way we only do it once
+                                            and not zoom_to_fit  # this way we only do it once
                                         ):
                                             row = {
                                                 "Species": species,
                                                 "WF Index": wf_idx,
                                                 "Filename": wf_fn,
                                                 "Frequency": f0_exact_bin,
+                                                "Frequency (Rounded)":f0,
                                                 "N_xi": N_xi,
                                                 "N_xi_std": N_xi_std,
                                                 "T_xi": T_xi,
@@ -632,7 +665,10 @@ for filter_meth in filter_meths:
                                                 "Decayed Num Cycles": xis_s[decayed_idx]
                                                 * f0_exact_bin,
                                             }
-                                            if output_filtered_peaks and not zoom_to_fit:
+                                            if (
+                                                output_filtered_peaks
+                                                and not zoom_to_fit
+                                            ):
                                                 row.update(L_row)
                                             if N_bs > 0:
                                                 row.update(
@@ -664,19 +700,25 @@ for filter_meth in filter_meths:
                                     if output_filtered_peaks and not zoom_to_fit:
                                         plt.figure(filtered_peak_fig)
                                         filt_peaks_str = f"Filtered Peaks [{'Good' if good_peaks else 'Bad'}]"
-                                        filt_peaks_folder = os.path.join(results_folder, "Filtered Peaks")
-                                        filt_peaks_plot_fp = os.path.join(filt_peaks_folder, rf"{plot_fn_id} ({fits_str}).jpg")
+                                        filt_peaks_folder = os.path.join(
+                                            results_folder, "Filtered Peaks"
+                                        )
+                                        filt_peaks_plot_fp = os.path.join(
+                                            filt_peaks_folder,
+                                            rf"{plot_fn_id} ({fits_str}).jpg",
+                                        )
                                         os.makedirs(filt_peaks_folder, exist_ok=True)
                                         plt.savefig(filt_peaks_plot_fp, dpi=300)
                                     if show_plots:
                                         plt.show()
-                                    plt.close('all')
+                                    plt.close("all")
 
                 if output_spreadsheet and not only_calc_new_coherences:
                     # Save parameter data as xlsx
                     df_fitted_params = pd.DataFrame(rows)
                     N_xi_fitted_parameters_fn = os.path.join(
-                        results_folder, rf"SOAE N_xi Fitted Parameters ({relevant_comp_str})"
+                        results_folder,
+                        rf"SOAE N_xi Fitted Parameters ({relevant_comp_str})",
                     )
                     df_fitted_params.to_excel(
                         rf"{N_xi_fitted_parameters_fn}.xlsx", index=False
