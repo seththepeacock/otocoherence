@@ -249,7 +249,7 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
                 1521,
                 2038,
             ]
-            bad_peak_freqs = [2694,]
+            bad_peak_freqs = [2694,] # Note 2694 is actually good in static!
 
         # Owls
         case "Owl2R1.mat":  # 0
@@ -307,10 +307,11 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         case "tokay_GG3rearSOAEwf.mat":  # 2
             good_peak_freqs = [
                 1257,   
+                1837,
                 2579,
                 3568,
             ]
-            bad_peak_freqs = [1837,]
+            bad_peak_freqs = []
         case "tokay_GG4rearSOAEwf.mat":  # 3
             good_peak_freqs = [
                 1251,
@@ -697,6 +698,48 @@ def get_hop_from_hop_thing(hop_thing, tau, fs):
             if not isinstance(hop, int):
                 raise ValueError("You passed in hop as an 'int' but it's not an int...")
     return hop
+
+
+def get_excluded_fits(kind):
+    
+    match kind:
+        case "static":
+            # And for terrible static fits
+            return [
+                ("Anole", 1, 966),
+                ("Human", 0, 2805),
+                ("Human", 2, 1634),
+                ("Owl", 0, 4351),
+                ("Owl", 1, 9258), # This one almost works in phi, just would need a different fitting algorithm (works in P already)
+                ("Owl", 2, 5626),
+                ("Owl", 3, 5768),
+                ("Tokay", 0, 1779),
+                ("Tokay", 0, 4211),
+                ("Tokay", 1, 1776),
+                ("Tokay", 2, 1257),
+                ("Tokay", 3, 1251),
+            ]
+        
+            # Bad for 150Hz, better for 200Hz
+            # ("Anole", 3, 2140),
+            # ("Anole", 3, 2783),
+
+
+            # Already got excluded with switch to dyn 150
+            # ("Anole", 1, 3023),
+            # ("Anole", 2, 1811),
+            # ("Human", 0, 2662),
+            # ("Tokay", 2, 1837),
+
+        case "PSD":
+            return [
+                ("Owl", 1, 9258),
+                ("Owl", 0, 4351),
+                ("Anole", 3, 2783),
+            ]
+            # Already got excluded with switch to dyn 150
+            # ("Anole", 1, 3023),
+            # ("Anole", 2, 1811),
 
 
 def get_human_peak_freqs(wf_fn):

@@ -28,20 +28,17 @@ scale = True  # Scale the waveform for dB SPL (won't have an effect outisde of v
 demean = True  # subtract mean
 
 # Coherence Parameters
-modes = ["phi"]
+modes = ["P", "phi"]
 rho_bw_hops = [
-    # (1.0, 200, ("s", 0.01)),
-    # (1.0, 300, ("s", 0.01)),
-    # (None, "species", ("s", 0.01)),
-    (1.0, 100, ("s", 0.01)),
+    # (1.0, 100, ("s", 0.01)),
+    (1.0, 50, ("s", 0.01)),
     # (1.0, 150, ("s", 0.01)),
-    # (1.0, 50, ("s", 0.01)),
+    # (None, "species", ("s", 0.01)),
 ]
 wa = False
 const_N_pd = 0
 nfft = 2**14
-nbacf = False
-
+nbacf_bundle = True # Ignore hop choice, just do selected freqs, and do nbacf
 
 # PSD Parameters
 tau_psd = nfft
@@ -87,8 +84,6 @@ show_plots = 0
 force_all_freqs = 0
 
 
-# Plotting parameters
-plot_noise_floor = 1
 
 # Species specific params
 
@@ -117,7 +112,7 @@ max_khzs = {
     "Owl": 12,
 }
 
-species_bws = {"Anole": 150, "Human": 50, "Owl": 300, "Tokay": 150}
+species_bws = {"Anole": 200, "Human": 50, "Owl": 300, "Tokay": 200}
 
 # Define a folder
 pkl_folder = "pickles"
@@ -191,15 +186,25 @@ for filter_meth in filter_meths:
                         if species == "Human" and wf_idx in [2, 3]:
                             if xi_max_s == 1.0:
                                 xi_max_s = 1.5
-
-                        "Calculate/load things"
-
+                        
                         # Deal with # of freqs to calculate
                         if output_colossograms or force_all_freqs:
                             f0s_cgram = None
                         else:
                             f0s_cgram = all_sel_freqs
-                        hop_cgram = hop
+
+                        "Calculate/load things"
+
+                        # NBACF bundle
+                        if nbacf_bundle:
+                            nbacf = True
+                            hop = 1
+                            f0s_cgram = all_sel_freqs
+                            plot_noise_floor = 0
+                            output_colossograms = 0
+                        else:
+                            nbacf = False
+                            plot_noise_floor = 1
 
                         # This function will load the pickle if it exists or calculate it (and pickle it) if not
                         cgram_dict = load_calc_colossogram(
@@ -218,7 +223,7 @@ for filter_meth in filter_meths:
                                 "nfft": nfft,
                                 "xi_min_s": xi_min_s,
                                 "xi_max_s": xi_max_s,
-                                "hop": hop_cgram,
+                                "hop": hop,
                                 "win_meth": win_meth,
                                 "force_recalc_colossogram": force_recalc_colossogram,
                                 "plot_what_we_got": plot_what_we_got,
@@ -292,7 +297,7 @@ for filter_meth in filter_meths:
                         delta_xi_str = (
                             ""
                             if xi_min_s == 0.001
-                            else f"delta_xi={xi_min_s*1e3:.0f}ms, "
+                            else f"delta_xi={xi_min_s*1e3:.1f}ms, "
                         )
                         bw_str = (
                             f"HPBW={bw}Hz"
