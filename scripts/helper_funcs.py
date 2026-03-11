@@ -10,7 +10,7 @@ import pickle
 from phaseco import *
 import phaseco as pc
 import time
-from scipy.fft import rfft, rfftfreq
+from scipy.fft import rfft, rfftfreq, irfft
 from tqdm import tqdm
 from collections import defaultdict
 
@@ -324,18 +324,18 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
     return wf, wf_fn, fs, np.array(good_peak_freqs), np.array(bad_peak_freqs)
 
 
-def filter_wf(wf, fs, filter_meth):
-    if filter_meth is not None:
-        match filter_meth["type"]:
-            case "spectral":
-                wf = spectral_filter(wf, fs, filter_meth["cf"], type="hp")
-            case "kaiser":
-                wf = kaiser_filter(
-                    wf, fs, filter_meth["cf"], filter_meth["df"], filter_meth["rip"]
-                )
-            case _:
-                raise ValueError(f"{filter_meth['type']} is not a valid HPF type!")
-    return wf
+# def filter_wf(wf, fs, filter_meth):
+#     if filter_meth is not None:
+#         match filter_meth["type"]:
+#             case "spectral":
+#                 wf = spectral_filter(wf, fs, filter_meth["cf"], type="hp")
+#             case "kaiser":
+#                 wf = kaiser_filter(
+#                     wf, fs, filter_meth["cf"], filter_meth["df"], filter_meth["rip"]
+#                 )
+#             case _:
+#                 raise ValueError(f"{filter_meth['type']} is not a valid HPF type!")
+#     return wf
 
 
 def crop_wf(wf, fs, wf_len_s):
@@ -520,6 +520,41 @@ def kaiser_filter(wf, fs, cf=300, df=50, rip=100):
     return filtered_wf
 
 
+def exp_filter(wf, fs, fmin, fmax, order=30):
+    safe_exp = lambda x: np.exp(np.clip(x, -50, 50)) # Shouldn't affect things at all but will prevent overflow errors
+    N = len(wf)
+    f = rfftfreq(N, 1/fs)
+
+    # Get Filter response
+    CF = (fmin + fmax)/2
+    BW = fmax-fmin
+
+    gamma_n = 1.0
+
+    # compute lambda_n
+    for _ in range(2, order+1):
+        gamma_n = np.log(gamma_n + 1)
+
+    lambda_n = np.sqrt(gamma_n)
+
+    # shift filter
+    f = f - CF
+    f = lambda_n * f / BW
+
+    Gamma_n = safe_exp(f**2)
+
+    # compute Gamma_n
+    for _ in range(2, order+1):
+        Gamma_n = safe_exp(Gamma_n - 1)
+
+    Sn = 1.0 / Gamma_n
+
+    # Apply in Fourier domain
+    wf_f = rfft(wf)
+    wf_f = wf_f*Sn
+    wf_filt = irfft(wf_f)
+    return wf_filt
+
 def get_filter_str(filter_meth):
     if filter_meth is None:
         return "filter=None"
@@ -611,6 +646,41 @@ def get_colors(peak_qual):
             ]
 
 
+# --- Lorentzian model ---
+def lorentzian(x, x0, y0, gamma, a):
+    return a / (1 + ((x - x0) / gamma) ** 2) + y0
+
+def exp_decay(x, a, T_xi):
+    return a*np.exp(-x/T_xi)
+
+def fit_exp(x, acf):
+    # --- Initial guesses ---
+    a_guess = 1
+    T_xi_guess = 0.01
+
+    # --- Bounds ---
+    a_bounds = (0, np.inf)
+    T_xi_bounds = (0, np.inf)
+
+
+    bounds = (
+        [a_bounds[0], T_xi_bounds[0]],
+        [a_bounds[1], T_xi_bounds[1]]
+    )
+
+    p0 = [a_guess, T_xi_guess]
+
+    # --- Fit ---
+    try:
+        popt, pcov = curve_fit(exp_decay, x, acf, p0=p0, bounds=bounds)
+    except RuntimeError:
+        print("Exponential fit did not converge, returning initial guess.")
+        popt = p0
+    a, T_xi = popt
+    exp_fit = exp_decay(x, a, T_xi)
+
+    return a, T_xi, exp_fit
+
 def fit_lorentzian(f, psd):
     """
     Fit a single Lorentzian to a PSD peak.
@@ -624,15 +694,13 @@ def fit_lorentzian(f, psd):
 
     Returns
     -------
-    popt : ndarray
-        Optimal parameters [x0, gamma, A].
+    x0: float
+    y0: float
+    gamma: float
+    A: float
     lorentz_fit : ndarray
         Lorentzian evaluated at f with fitted parameters.
     """
-
-    # --- Lorentzian model ---
-    def lorentzian(x, x0, gamma, A):
-        return A / (1 + ((x - x0) / gamma) ** 2)
 
     # Normalize for nicer dynamic range
     norm_factor = np.max(psd)
@@ -642,7 +710,7 @@ def fit_lorentzian(f, psd):
     peak_idx = np.argmax(psd_norm)
     x0_guess = f[peak_idx]
     A_guess = psd_norm[peak_idx]
-    # y0_guess = np.min(psd_norm)
+    y0_guess = np.min(psd_norm)
 
     # Rough HWHM estimate: find freq span where PSD > half max
     half_max = A_guess / 2
@@ -651,22 +719,19 @@ def fit_lorentzian(f, psd):
         hwhm_guess = (f[indices_half[-1]] - f[indices_half[0]]) / 2
     else:
         hwhm_guess = (f[-1] - f[0]) / 2  # fallback guess
-    # p0 = [x0_guess, y0_guess, hwhm_guess, A_guess]
-    p0 = [x0_guess, hwhm_guess, A_guess]
+
+    p0 = [x0_guess, y0_guess, hwhm_guess, A_guess]
 
     # --- Bounds ---
     x0_bounds = (f[0], f[-1])
-    # y0_bounds = (0, np.inf)
+    y0_bounds = (0, np.max(psd_norm))
     hwhm_bounds = (0, f[-1] - f[0])
     A_bounds = (A_guess * 0.5, A_guess * 2)  #
+    
 
-    # bounds = (
-    #     [x0_bounds[0], y0_bounds[0], hwhm_bounds[0], A_bounds[0]],
-    #     [x0_bounds[1], y0_bounds[1], hwhm_bounds[1], A_bounds[1]],
-    # )
     bounds = (
-        [x0_bounds[0], hwhm_bounds[0], A_bounds[0]],
-        [x0_bounds[1], hwhm_bounds[1], A_bounds[1]],
+        [x0_bounds[0], y0_bounds[0], hwhm_bounds[0], A_bounds[0]],
+        [x0_bounds[1], y0_bounds[1], hwhm_bounds[1], A_bounds[1]],
     )
 
     # --- Fit ---
@@ -675,16 +740,15 @@ def fit_lorentzian(f, psd):
     except RuntimeError:
         print("Lorentzian fit did not converge, returning initial guess.")
         popt = p0
-    # x0, y0, gamma, A = popt
-    # A, y0 = np.array([A, y0]) * norm_factor
-    # lorentz_fit = lorentzian(f, x0, y0, gamma, A)
+    x0, y0, gamma, a = popt
+    a, y0 = np.array([a, y0]) * norm_factor
+    lorentz_fit = lorentzian(f, x0, y0, gamma, a)
 
-    # return x0, y0, gamma, A, lorentz_fit
-    x0, gamma, A = popt
-    A = A * norm_factor
-    lorentz_fit = lorentzian(f, x0, gamma, A)
+    return x0, y0, gamma, a, lorentz_fit
 
-    return x0, gamma, A, lorentz_fit
+
+
+
 
 
 def get_hop_from_hop_thing(hop_thing, tau, fs):
