@@ -5,7 +5,7 @@ from phaseco import *
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
-for species in ['Anole', 'Human', 'Owl', 'Tokay',]:
+for species in ['Tokay','Anole', 'Human', 'Owl']:
     for wf_idx in range(4):
         "Get waveform"
         wf, wf_fn, fs, good_peak_freqs, bad_peak_freqs = get_wf(species=species, wf_idx=wf_idx)

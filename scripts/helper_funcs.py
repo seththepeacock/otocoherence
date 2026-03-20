@@ -10,6 +10,7 @@ import pickle
 from phaseco import *
 import phaseco as pc
 import time
+import ast
 from scipy.fft import rfft, rfftfreq, irfft
 from tqdm import tqdm
 from collections import defaultdict
@@ -103,7 +104,7 @@ def load_calc_colossogram(
                 wf = wf - np.mean(wf)
 
             # Apply filter (filter_meth could be None)
-            wf = filter_wf(wf, fs, filter_meth)
+            wf = filter_wf_cgram(wf, fs, filter_meth)
 
             wf_pp = wf
         # If it's already been processed and passed in, just use it
@@ -146,13 +147,29 @@ def load_calc_colossogram(
     # We now have colossogram_dict either from a saved pickle (new or old) or from the calculation; return it!
     return cgram_dict
 
+def get_dirs(root=r"c:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
+    dirs = {}
+    dirs["oto"] = root
+    # Get subfolders
+    for subfolder in ["scripts", "results", "pickles"]:
+        dirs[subfolder] = os.path.join(dirs["oto"], subfolder)
+    # subsubdirs
+    for results_subfolder in ["psd", "acf", "plots"]:
+        dirs[results_subfolder] = os.path.join(dirs["results"], results_subfolder)
+    for dir in dirs.values():
+        os.makedirs(dir, exist_ok=True)
+    return dirs
 
-def get_wf(wf_fn=None, species=None, wf_idx=None):
+def get_wf_fn(wf_fn=None, species=None, wf_idx=None):
     if wf_fn is None:
         if species is None or wf_idx is None:
             raise ValueError("You must input either fn or species and idx!")
         else:
             wf_fn = get_fn(species, wf_idx)
+    return wf_fn
+
+def get_wf(wf_fn=None, species=None, wf_idx=None):
+    wf_fn = get_wf_fn(wf_fn, species, wf_idx)
 
     # Load wf
     data_folder = "data"
@@ -174,14 +191,30 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
     else:
         fs = 44100
 
+    return wf, wf_fn, fs
+
+def get_picked_peaks(fp_pp, wf_fn=None, species=None, wf_idx=None):
+    wf_fn = get_wf_fn(wf_fn, species, wf_idx)
+    df = pd.read_json(fp_pp, orient="records")
+    row = df[df["wf_fn"] == wf_fn].iloc[0]   # get the actual row
+    peaks_list = row["peaks"]
+    # df["peaks"] = df["peaks"].apply(np.array)
+    picked_peaks = np.array(peaks_list)
+    
+
+    return picked_peaks
+
+    
+
+def get_peak_guesses(wf_fn=None, species=None, wf_idx=None):
+    wf_fn = get_wf_fn(wf_fn, species, wf_idx)
     # Get peak list
     match wf_fn:
-
         # Anoles
         case "AC6rearSOAEwfB1.mat":  # 0
             good_peak_freqs = [
                 1235,
-                2153,
+                3114,
                 3704,
                 4500,
             ]
@@ -189,57 +222,55 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         case "ACsb4rearSOAEwf1.mat":  # 1
             good_peak_freqs = [
                 966,
+                2262,
                 3152,
                 3954,
             ]
-            bad_peak_freqs = [3023,]
+            bad_peak_freqs = []
 
         case "ACsb24rearSOAEwfA1.mat":  # 2
             good_peak_freqs = [
-                
+                1728,
                 2178,
                 3112,
                 3478,
             ]
-            bad_peak_freqs = [1811,]
+            bad_peak_freqs = []
 
         case "ACsb30learSOAEwfA2.mat":  # 3
             good_peak_freqs = [
                 1798,
                 2140,
-                2417,
-                2783,
+                2411,
+                3040,
             ]
             bad_peak_freqs = []
         # Humans
         case "ALrearSOAEwf1.mat":  # 0
             good_peak_freqs = [
-                2805,
-                2942,
+                2662,
+                2819,
+                3219,
                 3863,
             ]
             bad_peak_freqs = [
-                2662,
-                3219,
             ]
         case "JIrearSOAEwf2.mat":  # 1
             good_peak_freqs = [
+                1313,
                 2339,
-                4051,
-                5838,
+                3400,
                 8309,
             ]
-            bad_peak_freqs = [
-                3400,
-                8675,
+            bad_peak_freqs = [               
             ]  # Note 8675 is only bad in C_xi^phi, it's good in C_xi^P
 
         case "LSrearSOAEwf1.mat":  # 2
             good_peak_freqs = [
                 732,
-                985,
                 1634,
                 2226,
+                3122,
             ]
             bad_peak_freqs = []
 
@@ -247,16 +278,17 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
             good_peak_freqs = [
                 904,
                 1521,
-                2038,
+                2282,
+                6036,
             ]
-            bad_peak_freqs = [2694,] # Note 2694 is actually good in static!
+            bad_peak_freqs = [] # Note 2694 is actually good in static!
 
         # Owls
         case "Owl2R1.mat":  # 0
             good_peak_freqs = [
                 4351,
+                5590,
                 7453,
-                8452,
                 9026,
             ]
             bad_peak_freqs = []
@@ -266,7 +298,7 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
                 6838,
                 7901,
                 8836,
-                9258,
+                9791,
             ]
             bad_peak_freqs = []
         case "TAG6rearSOAEwf1.mat":  # 2
@@ -280,9 +312,9 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
 
         case "owl_TAG4learSOAEwf1.mat":  # 3
             good_peak_freqs = [
-                4945,
-                5768,
+                5345,
                 7184,
+                8479,
                 9633,
             ]
             bad_peak_freqs = []
@@ -307,7 +339,7 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         case "tokay_GG3rearSOAEwf.mat":  # 2
             good_peak_freqs = [
                 1257,   
-                1837,
+                1706,
                 2579,
                 3568,
             ]
@@ -315,27 +347,28 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         case "tokay_GG4rearSOAEwf.mat":  # 3
             good_peak_freqs = [
                 1251,
-                2591,
+                1480,
                 3217,
                 3583,
             ]
             bad_peak_freqs = []
+        case _:
+            raise ValueError("wf_fn input to get_peak_guesses is not valid!")
+    return np.array(good_peak_freqs)
 
-    return wf, wf_fn, fs, np.array(good_peak_freqs), np.array(bad_peak_freqs)
 
-
-# def filter_wf(wf, fs, filter_meth):
-#     if filter_meth is not None:
-#         match filter_meth["type"]:
-#             case "spectral":
-#                 wf = spectral_filter(wf, fs, filter_meth["cf"], type="hp")
-#             case "kaiser":
-#                 wf = kaiser_filter(
-#                     wf, fs, filter_meth["cf"], filter_meth["df"], filter_meth["rip"]
-#                 )
-#             case _:
-#                 raise ValueError(f"{filter_meth['type']} is not a valid HPF type!")
-#     return wf
+def filter_wf_cgram(wf, fs, filter_meth):
+    if filter_meth is not None:
+        match filter_meth["type"]:
+            case "spectral":
+                wf = spectral_filter(wf, fs, filter_meth["cf"], type="hp")
+            case "kaiser":
+                wf = kaiser_filter(
+                    wf, fs, filter_meth["cf"], filter_meth["df"], filter_meth["rip"]
+                )
+            case _:
+                raise ValueError(f"{filter_meth['type']} is not a valid HPF type!")
+    return wf
 
 
 def crop_wf(wf, fs, wf_len_s):
@@ -532,7 +565,7 @@ def exp_filter(wf, fs, fmin, fmax, order=30):
     gamma_n = 1.0
 
     # compute lambda_n
-    for _ in range(2, order+1):
+    for _ in range(order-1):
         gamma_n = np.log(gamma_n + 1)
 
     lambda_n = np.sqrt(gamma_n)
@@ -544,16 +577,16 @@ def exp_filter(wf, fs, fmin, fmax, order=30):
     Gamma_n = safe_exp(f**2)
 
     # compute Gamma_n
-    for _ in range(2, order+1):
+    for _ in range(order-1):
         Gamma_n = safe_exp(Gamma_n - 1)
 
     Sn = 1.0 / Gamma_n
-
+    
     # Apply in Fourier domain
-    wf_f = rfft(wf)
+    wf_f = rfft(wf, 2*N-1)
     wf_f = wf_f*Sn
-    wf_filt = irfft(wf_f)
-    return wf_filt
+    wf_filt = irfft(wf_f, 2*N-1)
+    return wf_filt[0:N]
 
 def get_filter_str(filter_meth):
     if filter_meth is None:
@@ -652,6 +685,17 @@ def lorentzian(x, x0, y0, gamma, a):
 
 def exp_decay(x, a, T_xi):
     return a*np.exp(-x/T_xi)
+
+def get_T_xi_eta(nbacf, lags_s, eta=0.5, max_lag_s=None):
+    if max_lag_s is not None:
+        max_lag_idx = np.argmin(np.abs(lags_s-max_lag_s))
+        nbacf = nbacf[:max_lag_idx]
+    total_auc = np.sum(nbacf)
+    T_xi_idx = np.argmax(np.cumsum(nbacf, axis=-1) >= eta * total_auc)
+    if T_xi_idx < 1:
+        raise ValueError("T_xi is not physical!")
+    T_xi = lags_s[T_xi_idx]
+    return T_xi
 
 def fit_exp(x, acf):
     # --- Initial guesses ---
@@ -1158,3 +1202,198 @@ def get_human_peak_freqs(wf_fn):
 #        7.940,8.314,8.685]
 
 #     return np.array(mag_freqs), np.array(C_freqs)
+
+
+"ARO (and preprint?) Peak Picks"
+#     # Get peak list
+#     match wf_fn:
+
+#         # Anoles
+#         case "AC6rearSOAEwfB1.mat":  # 0
+#             good_peak_freqs = [
+#                 1235,
+#                 2153,
+#                 3704,
+#                 4500,
+#             ]
+#             bad_peak_freqs = []
+#         case "ACsb4rearSOAEwf1.mat":  # 1
+#             good_peak_freqs = [
+#                 966,
+#                 3152,
+#                 3954,
+#             ]
+#             bad_peak_freqs = [3023,]
+
+#         case "ACsb24rearSOAEwfA1.mat":  # 2
+#             good_peak_freqs = [
+                
+#                 2178,
+#                 3112,
+#                 3478,
+#             ]
+#             bad_peak_freqs = [1811,]
+
+#         case "ACsb30learSOAEwfA2.mat":  # 3
+#             good_peak_freqs = [
+#                 1798,
+#                 2140,
+#                 2417,
+#                 2783,
+#             ]
+#             bad_peak_freqs = []
+#         # Humans
+#         case "ALrearSOAEwf1.mat":  # 0
+#             good_peak_freqs = [
+#                 2805,
+#                 2942,
+#                 3863,
+#             ]
+#             bad_peak_freqs = [
+#                 2662,
+#                 3219,
+#             ]
+#         case "JIrearSOAEwf2.mat":  # 1
+#             good_peak_freqs = [
+#                 2339,
+#                 4051,
+#                 5838,
+#                 8309,
+#             ]
+#             bad_peak_freqs = [
+#                 3400,
+#                 8675,
+#             ]  # Note 8675 is only bad in C_xi^phi, it's good in C_xi^P
+
+#         case "LSrearSOAEwf1.mat":  # 2
+#             good_peak_freqs = [
+#                 732,
+#                 985,
+#                 1634,
+#                 2226,
+#             ]
+#             bad_peak_freqs = []
+
+#         case "TH13RearwaveformSOAE.mat":  # 3
+#             good_peak_freqs = [
+#                 904,
+#                 1521,
+#                 2038,
+#             ]
+#             bad_peak_freqs = [2694,] # Note 2694 is actually good in static!
+
+#         # Owls
+#         case "Owl2R1.mat":  # 0
+#             good_peak_freqs = [
+#                 4351,
+#                 7453,
+#                 8452,
+#                 9026,
+#             ]
+#             bad_peak_freqs = []
+
+#         case "Owl7L1.mat":  # 1
+#             good_peak_freqs = [
+#                 6838,
+#                 7901,
+#                 8836,
+#                 9258,
+#             ]
+#             bad_peak_freqs = []
+#         case "TAG6rearSOAEwf1.mat":  # 2
+#             good_peak_freqs = [
+#                 5626,
+#                 8096,
+#                 8489,
+#                 9865,
+#             ]
+#             bad_peak_freqs = []
+
+#         case "owl_TAG4learSOAEwf1.mat":  # 3
+#             good_peak_freqs = [
+#                 4945,
+#                 5768,
+#                 7184,
+#                 9633,
+#             ]
+#             bad_peak_freqs = []
+
+#         # Tokays
+#         case "tokay_GG1rearSOAEwf.mat":  # 0
+#             good_peak_freqs = [
+#                 1343,
+#                 1779,
+#                 3650,
+#                 4211,
+#             ]
+#             bad_peak_freqs = []
+#         case "tokay_GG2rearSOAEwf.mat":  # 1
+#             good_peak_freqs = [
+#                 1364,
+#                 1776,
+#                 3607,
+#                 4395,
+#             ]
+#             bad_peak_freqs = []
+#         case "tokay_GG3rearSOAEwf.mat":  # 2
+#             good_peak_freqs = [
+#                 1257,   
+#                 1837,
+#                 2579,
+#                 3568,
+#             ]
+#             bad_peak_freqs = []
+#         case "tokay_GG4rearSOAEwf.mat":  # 3
+#             good_peak_freqs = [
+#                 1251,
+#                 2591,
+#                 3217,
+#                 3583,
+#             ]
+#             bad_peak_freqs = []
+
+#     return wf, wf_fn, fs, np.array(good_peak_freqs), np.array(bad_peak_freqs)
+
+
+"OG Peak Picks"
+# # Get peak list
+# match wf_fn:
+#     # Anoles
+#     case 'AC6rearSOAEwfB1.mat': #0
+#         peak_freqs = [1233, 2164, 3714, 4500]
+#         bad_fit_freqs = []
+#     case 'ACsb4rearSOAEwf1.mat': #1
+#         peak_freqs = [964, 3031, 3160, 3957]
+#         bad_fit_freqs = []
+#     case 'ACsb24rearSOAEwfA1.mat': #2    
+#         peak_freqs = [1809, 2169, 3112, 3478]
+#         bad_fit_freqs = []
+#     case 'ACsb30learSOAEwfA2.mat': #3
+#         peak_freqs = [1803, 2137, 2406, 2778]
+#         bad_fit_freqs = []
+#     # Humans
+#     case 'ALrearSOAEwf1.mat': #0
+#         peak_freqs = [2665, 2945, 3219, 3865]
+#         bad_fit_freqs = []
+#     case 'JIrearSOAEwf2.mat': #1
+#         peak_freqs = [2342, 3402, 8312, 8678]
+#         bad_fit_freqs = []
+#     case 'LSrearSOAEwf1.mat': #2
+#         peak_freqs = [732, 985, 1637, 2229]
+#         bad_fit_freqs = []
+#     case 'TH13RearwaveformSOAE.mat': #3
+#         peak_freqs = [904, 1518, 2040, 2697]
+#         bad_fit_freqs = []
+#     # Owls
+#     case 'Owl2R1.mat': #0
+#         peak_freqs = [4355, 7451, 8458, 9039]
+#         bad_fit_freqs = []
+#     case 'Owl7L1.mat': #1
+#         peak_freqs = [6896, 7941, 8861, 9271]
+#         bad_fit_freqs = []
+#     case 'TAG6rearSOAEwf1.mat': #2
+#         peak_freqs = [5626, 8096, 8484, 9862]
+#         bad_fit_freqs = []
+#     case 'TAG9rearSOAEwf2.mat': #3
+#         peak_freqs = [4931, 6993, 7450, 9878]
+#         bad_fit_freqs = []

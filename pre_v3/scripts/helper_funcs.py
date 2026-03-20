@@ -420,7 +420,6 @@ def get_fn(species, idx):
         case _:
             raise ValueError("Species must be 'Anole', 'Human', 'Tokay', or 'Owl'!")
 
-
 def get_precalc_tau_from_bw(bw, fs, win_type, pkl_folder):
     pkl_fp = os.path.join(pkl_folder, "precalc_taus.pkl")
     key = (win_type, fs, bw)
@@ -446,7 +445,7 @@ def get_precalc_tau_from_bw(bw, fs, win_type, pkl_folder):
             pickle.dump(d, file)
 
     return tau
-
+    
 
 def spectral_filter(wf, fs, cutoff_freq, type="hp"):
     """Filters waveform by zeroing out frequencies above/below cutoff frequency
