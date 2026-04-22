@@ -10,10 +10,73 @@ import pickle
 from phaseco import *
 import phaseco as pc
 import time
-from scipy.fft import rfft, rfftfreq
+from scipy.fft import rfft, irfft, rfftfreq
 from tqdm import tqdm
 from collections import defaultdict
 
+
+"NEW"
+
+def get_band(f, f0, gamma, bw_thresh=0.1):
+    peak = lorentzian(f, f0, y0=0, gamma=gamma, a=1)
+    pmp_idx = np.argmin(np.abs(peak-1)) # Get peak midpoint index
+    peak_left = peak[0:pmp_idx]
+    peak_right = peak[pmp_idx:]
+    fmin_idx = np.argmin(np.abs(peak_left-bw_thresh))
+    fmax_idx = np.argmin(np.abs(peak_right-bw_thresh)) + pmp_idx
+    fmin, fmax = f[[fmin_idx, fmax_idx]]
+    return fmin, fmax
+
+
+def exp_filter(wf, fs, fmin, fmax, order=30):
+    safe_exp = lambda x: np.exp(np.clip(x, -50, 50))
+    N = len(wf)
+    f = rfftfreq(N, 1/fs)
+
+    # Get Filter response
+    CF = (fmin + fmax)/2
+    BW = fmax-fmin
+
+    gamma_n = 1.0
+
+    # compute lambda_n
+    for _ in range(2, order+1):
+        gamma_n = np.log(gamma_n + 1)
+
+    lambda_n = np.sqrt(gamma_n)
+
+    # shift filter
+    f = f - CF
+    f = lambda_n * f / BW
+
+    Gamma_n = safe_exp(f**2)
+
+    # compute Gamma_n
+    for _ in range(2, order+1):
+        Gamma_n = safe_exp(Gamma_n - 1)
+
+    Sn = 1.0 / Gamma_n
+
+    # Apply in Fourier domain
+    wf_f = rfft(wf)
+    wf_f = wf_f*Sn
+    wf_filt = irfft(wf_f)
+    return wf_filt
+
+
+def filter_wf(wf, fs, fmin, fmax, p_filt):
+    # bw = fmax-fmin
+    match p_filt['type']:
+        case 'kaiser':
+            if p_filt["df"] < 1:
+                df = (fmax-fmin) * p_filt["df"]
+            else:
+                df = p_filt["df"]
+            return kaiser_filter(wf, fs, (fmin, fmax), df, p_filt['rip'])
+        case 'exp':
+            return exp_filter(wf, fs, fmin, fmax, p_filt['order'])
+
+"OLD"
 
 def load_calc_colossogram(
     wf,
@@ -609,6 +672,9 @@ def get_colors(peak_qual):
                 "#bcbd22",
             ]
 
+# --- Lorentzian model ---
+def lorentzian(x, x0, gamma, A):
+    return A / (1 + ((x - x0) / gamma) ** 2)
 
 def fit_lorentzian(f, psd):
     """
@@ -628,10 +694,6 @@ def fit_lorentzian(f, psd):
     lorentz_fit : ndarray
         Lorentzian evaluated at f with fitted parameters.
     """
-
-    # --- Lorentzian model ---
-    def lorentzian(x, x0, gamma, A):
-        return A / (1 + ((x - x0) / gamma) ** 2)
 
     # Normalize for nicer dynamic range
     norm_factor = np.max(psd)

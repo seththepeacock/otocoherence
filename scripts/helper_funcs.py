@@ -151,10 +151,10 @@ def get_dirs(root=r"c:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     dirs = {}
     dirs["oto"] = root
     # Get subfolders
-    for subfolder in ["scripts", "results", "pickles"]:
+    for subfolder in ["scripts", "results", "pickles", "data"]:
         dirs[subfolder] = os.path.join(dirs["oto"], subfolder)
     # subsubdirs
-    for results_subfolder in ["psd", "acf", "plots"]:
+    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_eta", "T_xi_int", "figs"]:
         dirs[results_subfolder] = os.path.join(dirs["results"], results_subfolder)
     for dir in dirs.values():
         os.makedirs(dir, exist_ok=True)
@@ -678,6 +678,29 @@ def get_colors(peak_qual):
                 "#bcbd22",
             ]
 
+def get_band(f, f0, gamma, bw_thresh=0.1):
+    peak = lorentzian(f, f0, y0=0, gamma=gamma, a=1)
+    pmp_idx = np.argmin(np.abs(peak-1)) # Get peak midpoint index
+    peak_left = peak[0:pmp_idx]
+    peak_right = peak[pmp_idx:]
+    fmin_idx = np.argmin(np.abs(peak_left-bw_thresh))
+    fmax_idx = np.argmin(np.abs(peak_right-bw_thresh)) + pmp_idx
+    fmin, fmax = f[[fmin_idx, fmax_idx]]
+    return fmin, fmax
+
+
+def filter_wf(wf, fs, fmin, fmax, p_filt):
+    # bw = fmax-fmin
+    match p_filt['type']:
+        case 'kaiser':
+            if p_filt["df"] < 1:
+                df = (fmax-fmin) * p_filt["df"]
+            else:
+                df = p_filt["df"]
+            return kaiser_filter(wf, fs, (fmin, fmax), df, p_filt['rip'])
+        case 'exp':
+            return exp_filter(wf, fs, fmin, fmax, p_filt['order'])
+
 
 # --- Lorentzian model ---
 def lorentzian(x, x0, y0, gamma, a):
@@ -686,16 +709,34 @@ def lorentzian(x, x0, y0, gamma, a):
 def exp_decay(x, a, T_xi):
     return a*np.exp(-x/T_xi)
 
-def get_T_xi_eta(nbacf, lags_s, eta=0.5, max_lag_s=None):
+def get_T_xi_eta(acf, lags_s, eta=0.5, sig_thresh=0.1, max_lag_s=None):
     if max_lag_s is not None:
         max_lag_idx = np.argmin(np.abs(lags_s-max_lag_s))
-        nbacf = nbacf[:max_lag_idx]
-    total_auc = np.sum(nbacf)
-    T_xi_idx = np.argmax(np.cumsum(nbacf, axis=-1) >= eta * total_auc)
+        acf = acf[:max_lag_idx]
+
+    if sig_thresh is not None:
+        acf = np.where(acf < sig_thresh, 0, acf)
+
+    total_auc = np.sum(acf)
+    cumsum = np.cumsum(acf, axis=-1)
+    T_xi_idx = np.argmax(cumsum >= eta * total_auc)
+    
     if T_xi_idx < 1:
         raise ValueError("T_xi is not physical!")
     T_xi = lags_s[T_xi_idx]
     return T_xi
+
+def get_T_xi_int(acf, lags_s):
+    delta_x = lags_s[1]-lags_s[0]
+    # Check lags_s makes sense
+    if np.any(lags_s < 0) or np.any(lags_s[1:])==0:
+        raise ValueError("lags_s doesn't make sense!")
+    if np.abs((lags_s[-1]-lags_s[-2])-delta_x) > 1e-13:
+        raise ValueError("lags_s has inconsistent steps!")
+    T_xi = np.sum(acf)*delta_x
+    return T_xi
+
+
 
 def fit_exp(x, acf):
     # --- Initial guesses ---
