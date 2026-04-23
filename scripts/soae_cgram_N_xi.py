@@ -38,10 +38,9 @@ filter_meth = {'type':'kaiser', 'cf':hpf_cf, 'df':50, 'rip':100}
 T_xi_type = "int"
 
 # Significant T_xi extraction
-T_xi_thresh = 0.01
+T_xi_threshs = {"0.025":0.005, "0.05":0.01, "0.1":0.015}
 fmin = 500
 fmax = 15000
-rows = []
 
 # Plot
 dpi=300
@@ -52,10 +51,9 @@ s_sig = 5
 s_insig = 1
 fsz = 16
 
-for xi_max_s in [0.1, 0.05]:
-    if xi_max_s ==0.1:
-        T_xi_thresh = 0.014 # kludge
-
+for xi_max_s in [0.1]:
+    rows = []
+    T_xi_thresh = T_xi_threshs[str(xi_max_s)]
     cgram_id = f"delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
     T_xi_id = f"{T_xi_type} {xi_max_s*1000:.0f}ms, thresh={T_xi_thresh}, frange=({fmin},{fmax})"
     meth_id = f"{T_xi_id}, {cgram_id}"

@@ -77,7 +77,7 @@ match p_filt['type']:
         bpf_id = f"exp, order={p_filt['order']}hz"
 filt_id = f"bw={bw_filt_thresh*100:.0f}p max, {bpf_id}, crop={crop_bw}hz"
 
-for max_lag_s in [0.05, 0.1, 0.5]:
+for max_lag_s in [0.025]:
     # Initialize spreadsheet rows
     rows = []
     for species in speciess:
