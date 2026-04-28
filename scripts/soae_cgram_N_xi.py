@@ -16,8 +16,8 @@ os.chdir(dirs["oto"])
 # ---WF---
 speciess = ["Owl", "Anole", "Tokay", "Human"]
 wf_idxs = range(4)
-# speciess = ["Human", "Owl"]
-# wf_idxs = [1]
+# speciess = ["Owl"]
+# wf_idxs = [0]
 wf_len_s = 60
 
 # ---CGRAM---
@@ -26,6 +26,7 @@ tau_s = 0.15
 hop_s = 0.01 # Defining it as a fraction of tau doesn't make sense since "effective" tau changes with xi
 nfft = 2**13 # Next power of 2 for all fs
 win_meth = {"method": "rho", "rho": 1.0, "win_type": "hann"}
+# win_meth = {"method": "static", "win_type": "hann"}
 xi_min_s = 0.001
 xi_max_s = 0.05
 flims = {'Anole':[1, 6], 'Human':[1, 10], 'Owl':[1, 12], 'Tokay':[1, 6]}
@@ -51,12 +52,11 @@ s_sig = 5
 s_insig = 1
 fsz = 16
 
-for xi_max_s in [0.1]:
+for xi_max_s in [0.1, 0.05]:
     rows = []
     T_xi_thresh = T_xi_threshs[str(xi_max_s)]
-    cgram_id = f"delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
-    T_xi_id = f"{T_xi_type} {xi_max_s*1000:.0f}ms, thresh={T_xi_thresh}, frange=({fmin},{fmax})"
-    meth_id = f"{T_xi_id}, {cgram_id}"
+    cgram_id = f"{xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
+    T_xi_id = f"{T_xi_type} {xi_max_s*1000:.0f}ms, thresh={T_xi_thresh}, frange=({fmin},{fmax}), delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
     for wf_idx in wf_idxs: 
         for species in speciess:
         
@@ -138,7 +138,7 @@ for xi_max_s in [0.1]:
                 plt.title(f"{species} {wf_idx} [{wf_fn}]", fontsize=fsz)
                 plt.tight_layout()
 
-                fn_T_xi_spec = f"{species} {wf_idx} T_xi Spectrum [{meth_id}].jpg"
+                fn_T_xi_spec = f"{species} {wf_idx} T_xi Spectrum [{T_xi_id}].jpg"
                 plt.savefig(os.path.join(dirs["T_xi_specs"], fn_T_xi_spec), dpi=dpi)
                 
                 # Plot Cgram
@@ -156,7 +156,7 @@ for xi_max_s in [0.1]:
                 row = {'species':species, 'wf_idx':wf_idx, 'f0':f0, 'mode':mode, 'T_xi':T_xi0, 'wf_fn':wf_fn, 'T_xi_type':T_xi_type}
                 rows.append(row)
     df = pd.DataFrame(rows)
-    fp_sheets = os.path.join(dirs["results"], f"soae_T_xi_cgram [{meth_id}].xlsx")
+    fp_sheets = os.path.join(dirs["results"], f"soae_T_xi_cgram [{T_xi_id}].xlsx")
     df.to_excel(fp_sheets, index=False)
 
 
