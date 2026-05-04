@@ -23,7 +23,8 @@ for species in ['Tokay','Anole', 'Human', 'Owl',]:
         plot = 0
         check_guesses = 0
         tau_s = 0.5 # old was tau = 2**14
-        hop_s = 0.25
+        nfft = None
+        hop_s = tau_s / 2
         tau, hop = int(round(tau_s*fs)), int(round(hop_s*fs))
         win_type = 'hann'
 
@@ -39,7 +40,7 @@ for species in ['Tokay','Anole', 'Human', 'Owl',]:
         max_khz = max_khzs[species]
         # Get peak bin indices
         fn_id = rf"{species} {wf_idx}, $\tau={tau / fs *1000:.0f}$ms, wf_length={wf_len_s:.3f}s"
-        f, psd = pc.get_welch(wf=wf, fs=fs, tau=tau, hop=hop, win=win_type)
+        f, psd = pc.get_welch(wf=wf, fs=fs, tau=tau, hop=hop, win=win_type, nfft=nfft)
         
         # Guesses
         # peak_guesses = np.concatenate((good_peak_freqs, bad_peak_freqs))

@@ -21,8 +21,9 @@ wf_len_s = 60
 
 # ---PSD---
 tau_s_psd = 0.5
+nfft_psd = None
 win_type_psd = 'hann'
-hop_s_psd = 0.25
+hop_s_psd = tau_s_psd / 2
 
 # ---Plots---
 flims = {'Anole':[1, 6], 'Human':[1, 10], 'Owl':[1, 12], 'Tokay':[1, 6]}
@@ -75,9 +76,9 @@ match p_filt['type']:
         bpf_id = f"kaiser, df={df}, rip={p_filt['rip']}db"
     case 'exp':
         bpf_id = f"exp, order={p_filt['order']}hz"
-filt_id = f"bw={bw_filt_thresh*100:.0f}p max, {bpf_id}, crop={crop_bw}hz"
+filt_id = f"bw={bw_filt_thresh*100:.0f}p max, {bpf_id}, crop={crop_bw}hz, tau={tau_s_psd*1000:.0f}ms, nfft={nfft_psd}"
 
-for max_lag_s in [0.025]:
+for max_lag_s in [0.5, 0.1, 0.05]:
     # Initialize spreadsheet rows
     rows = []
     for species in speciess:
@@ -98,7 +99,7 @@ for max_lag_s in [0.025]:
             flim = flims[species]
 
             # Get psd for plotting
-            f, psd = pc.get_welch(wf, fs, tau_psd, hop=hop_psd, win=win_type_psd)
+            f, psd = pc.get_welch(wf, fs, tau_psd, hop=hop_psd, win=win_type_psd, nfft=nfft_psd)
             psd_db = 10*np.log10(psd)
             f_khz = f / 1000
 
@@ -153,7 +154,7 @@ for max_lag_s in [0.025]:
                 wf -= np.mean(wf)
                 wf_filt = filter_wf(wf, fs, fmin_filt, fmax_filt, p_filt)
                 wf_filt -= np.mean(wf_filt)
-                psd_filt = pc.get_welch(wf_filt, fs, tau_psd, hop=hop_psd, win=win_type_psd)[1]
+                psd_filt = pc.get_welch(wf_filt, fs, tau_psd, hop=hop_psd, win=win_type_psd, nfft=nfft_psd)[1]
                 psd_filt_db = 10*np.log10(psd_filt)
 
                 # Plot individual fits
@@ -272,7 +273,7 @@ for max_lag_s in [0.025]:
                 plt.subplot(1, 2, 2)
                 plotter()
                 plt.xlim(0, xmax_ms)
-                plt.savefig(os.path.join(dirs[f"T_xi_{T_xi_type}"], f"{species} {wf_idx} {f0_max_round} Hz - ACF [{T_xi_id}] [{filt_id}].jpg"))
+                plt.savefig(os.path.join(dirs[f"T_xi_{T_xi_type}"], f"{species} {wf_idx} {f0_max_round} Hz - ACF [{T_xi_id}, {filt_id}].jpg"))
 
                 
                 rows.append(row)
@@ -285,7 +286,7 @@ for max_lag_s in [0.025]:
                 plt.savefig(os.path.join(dirs["psd"], f"{species} {wf_idx} Full PSD [{filt_id}]"))
 
     df = pd.DataFrame(rows)
-    fp_sheets = os.path.join(dirs["results"], f"soae_T_xi [{T_xi_id}].xlsx")
+    fp_sheets = os.path.join(dirs["results"], f"soae_T_xi [{T_xi_id}, {filt_id}].xlsx")
     df.to_excel(fp_sheets, index=False)
         
 

@@ -104,6 +104,7 @@ def load_calc_colossogram(
                 wf = wf - np.mean(wf)
 
             # Apply filter (filter_meth could be None)
+            print("ARE WE HEARE?")
             wf = filter_wf_cgram(wf, fs, filter_meth)
 
             wf_pp = wf
@@ -154,7 +155,7 @@ def get_dirs(root=r"c:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     for subfolder in ["scripts", "results", "pickles", "data"]:
         dirs[subfolder] = os.path.join(dirs["oto"], subfolder)
     # subsubdirs
-    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_int", "figs"]:
+    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_PSDs", "T_xi_int", "figs"]:
         dirs[results_subfolder] = os.path.join(dirs["results"], results_subfolder)
     for dir in dirs.values():
         os.makedirs(dir, exist_ok=True)

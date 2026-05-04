@@ -52,11 +52,11 @@ s_sig = 5
 s_insig = 1
 fsz = 16
 
-for xi_max_s in [0.1, 0.05]:
+for xi_max_s in [0.025]:
     rows = []
     T_xi_thresh = T_xi_threshs[str(xi_max_s)]
     cgram_id = f"{xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
-    T_xi_id = f"{T_xi_type} {xi_max_s*1000:.0f}ms, thresh={T_xi_thresh}, frange=({fmin},{fmax}), delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
+    T_xi_id = f"{T_xi_type} {xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
     for wf_idx in wf_idxs: 
         for species in speciess:
         
@@ -121,8 +121,10 @@ for xi_max_s in [0.1, 0.05]:
                 T_xis_plot = T_xis[fmin_idx_plot:fmax_idx_plot]
 
                 # Plot PSD 
-                psd_db = np.log10(pc.get_welch(wf=filter_wf_cgram(wf, fs, filter_meth), fs=fs, win="hann", tau=tau, nfft=nfft, hop=hop)[1])
-                psd_db_plot = psd_db[fmin_idx_plot:fmax_idx_plot]
+                wf_filt = filter_wf_cgram(wf, fs, filter_meth)
+                psd = pc.get_welch(wf=wf_filt, fs=fs, win="hann", tau=tau, nfft=nfft, hop=hop)[1]
+                psd_plot = psd[fmin_idx_plot:fmax_idx_plot]
+                psd_db_plot = 10*np.log10(psd_plot) 
                 plt.ylabel(rf"PSD [dB]", color="orange", fontsize=fsz)
                 plt.xlabel("Frequency [Hz]", fontsize=fsz)
                 plt.plot(f_plot, psd_db_plot, color="orange")
@@ -134,13 +136,29 @@ for xi_max_s in [0.1, 0.05]:
                 # plt.hlines(T_xi_thresh, 0, f[-1], color="purple")
                 # plt.vlines([hpf_cf, fmin], np.min(T_xis_plot), np.max(T_xis_plot), color="red", lw=1)
                 plt.ylabel(rf"$T_\xi^{{{T_xi_type}}}$ [{xi_max_s*1000:.0f}ms]", color="purple", fontsize=fsz)
-                
+
                 plt.title(f"{species} {wf_idx} [{wf_fn}]", fontsize=fsz)
                 plt.tight_layout()
-
                 fn_T_xi_spec = f"{species} {wf_idx} T_xi Spectrum [{T_xi_id}].jpg"
                 plt.savefig(os.path.join(dirs["T_xi_specs"], fn_T_xi_spec), dpi=dpi)
                 
+                # Plot T_xi*PSD
+                plt.close('all')
+                T_xis_psd_plot = psd_plot * T_xis_plot
+                T_xis_psd_plot = 10*np.log10(T_xis_psd_plot)
+                plt.plot(f_plot, psd_db_plot, color="orange", alpha=0.5)
+                plt.ylabel(rf"PSD [dB]", color="orange")
+                plt.twinx()
+                plt.plot(f_plot, T_xis_psd_plot, color="blue", alpha=0.5)
+                plt.ylabel(rf"$T_\xi \cdot$PSD [dB]", color="blue")
+                plt.title(f"{species} {wf_idx} [{wf_fn}]", fontsize=fsz)
+                plt.tight_layout()
+                fn_T_xi_psd = f"{species} {wf_idx} T_xi_PSD [{T_xi_id}].jpg"
+                plt.savefig(os.path.join(dirs["T_xi_PSDs"], fn_T_xi_psd), dpi=dpi)
+    
+                
+
+
                 # Plot Cgram
                 plt.close('all')
                 pc.plot_colossogram(cgram)
@@ -149,14 +167,14 @@ for xi_max_s in [0.1, 0.05]:
                 plt.savefig(os.path.join(dirs["cgrams"], fn_cgram), dpi=dpi)
 
             # Save data
-            T_xi_sig_idxs = np.flatnonzero(sig_mask)
-            for idx in T_xi_sig_idxs:
+            # T_xi_sig_idxs = np.flatnonzero(sig_mask)
+            for idx in range(len(f)):
                 f0 = f[idx]
                 T_xi0 = T_xis[idx]
                 row = {'species':species, 'wf_idx':wf_idx, 'f0':f0, 'mode':mode, 'T_xi':T_xi0, 'wf_fn':wf_fn, 'T_xi_type':T_xi_type}
                 rows.append(row)
     df = pd.DataFrame(rows)
-    fp_sheets = os.path.join(dirs["results"], f"soae_T_xi_cgram [{T_xi_id}].xlsx")
+    fp_sheets = os.path.join(dirs["results"], f"soae_T_xi [cgram {T_xi_id}].xlsx")
     df.to_excel(fp_sheets, index=False)
 
 
