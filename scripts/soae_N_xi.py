@@ -55,7 +55,7 @@ T_xi_type = "int"
 crop_bw = 200
 
 # ---Filtering---
-kaiser_rip = 80
+kaiser_rip = 100
 kaiser_df = 50
 exp_order = 10
 p_filt = {'type':'kaiser', 'rip':kaiser_rip, 'df':kaiser_df}
@@ -76,9 +76,9 @@ match p_filt['type']:
         bpf_id = f"kaiser, df={df}, rip={p_filt['rip']}db"
     case 'exp':
         bpf_id = f"exp, order={p_filt['order']}hz"
-filt_id = f"bw={bw_filt_thresh*100:.0f}p max, {bpf_id}, crop={crop_bw}hz, tau={tau_s_psd*1000:.0f}ms, nfft={nfft_psd}"
+filt_id = f"bw={bw_filt_thresh*100:.0f}p max, {bpf_id}, crop={crop_bw}hz, tau={tau_s_psd*1000:.0f}ms, hop_psd={hop_s_psd*1000:.0f}ms, nfft={nfft_psd}, win={win_type_psd}"
 
-for max_lag_s in [0.5, 0.1, 0.05]:
+for max_lag_s in [0.5, 0.025, 0.1]:
     # Initialize spreadsheet rows
     rows = []
     for species in speciess:

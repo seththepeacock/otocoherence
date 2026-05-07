@@ -62,7 +62,7 @@ def load_calc_colossogram(
         if f0s is None
         else f"f0s={np.array2string(f0s, formatter={'float' : lambda x: "%.0f" % x})}, "
     )
-    nfft_str = "" if nfft is None else f"nfft={nfft}, "
+    nfft_str = f"nfft={nfft}, "
     delta_xi_str = "" if xi_min_s == 0.001 else f"delta_xi={xi_min_s*1000:.1f}ms, "
     demean_str = "DM=True, " if demean else ""
 
@@ -104,7 +104,6 @@ def load_calc_colossogram(
                 wf = wf - np.mean(wf)
 
             # Apply filter (filter_meth could be None)
-            print("ARE WE HEARE?")
             wf = filter_wf_cgram(wf, fs, filter_meth)
 
             wf_pp = wf
@@ -173,8 +172,8 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
     wf_fn = get_wf_fn(wf_fn, species, wf_idx)
 
     # Load wf
-    data_folder = "data"
-    wf_fp = os.path.join(data_folder, wf_fn)
+    dirs = get_dirs()
+    wf_fp = os.path.join(dirs["data"], wf_fn)
     if species == "Tokay":
         wf = sio.loadmat(wf_fp)["wf"][0]
     elif species == "V Sim Human":
@@ -732,7 +731,8 @@ def get_T_xi_int(acf, lags_s):
     # Check lags_s makes sense
     if np.any(lags_s < 0) or np.any(lags_s[1:])==0:
         raise ValueError("lags_s doesn't make sense!")
-    if np.abs((lags_s[-1]-lags_s[-2])-delta_x) > 1e-13:
+    if np.abs((lags_s[-1]-lags_s[-2])-delta_x) > 1e-4:
+        print(lags_s)
         raise ValueError("lags_s has inconsistent steps!")
     T_xi = np.sum(acf)*delta_x
     return T_xi

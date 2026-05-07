@@ -22,13 +22,14 @@ wf_len_s = 60
 
 # ---CGRAM---
 mode = "phi"
-tau_s = 0.15
+tau_s = 0.15 # Used for both cgram and PSD for consistency
 hop_s = 0.01 # Defining it as a fraction of tau doesn't make sense since "effective" tau changes with xi
-nfft = 2**13 # Next power of 2 for all fs
+hop_cgram_psd_s = 0.075 # Half of tau
+# nfft = 2**13 # Next power of 2 for all fs
+nfft_cgram_and_psd = None
 win_meth = {"method": "rho", "rho": 1.0, "win_type": "hann"}
 # win_meth = {"method": "static", "win_type": "hann"}
 xi_min_s = 0.001
-xi_max_s = 0.05
 flims = {'Anole':[1, 6], 'Human':[1, 10], 'Owl':[1, 12], 'Tokay':[1, 6]}
 # flims = {'Anole':[0, 6], 'Human':[0, 10], 'Owl':[0, 12], 'Tokay':[0, 6]}
 plot_xi_max_ss = {'Anole':50, 'Owl':50, 'Tokay':50, 'Human':200}
@@ -52,11 +53,13 @@ s_sig = 5
 s_insig = 1
 fsz = 16
 
-for xi_max_s in [0.025]:
+for xi_max_s in [0.025, 0.05, 0.1]:
+    if xi_max_s != 0.025:
+        xi_min_s = 0.001
     rows = []
     T_xi_thresh = T_xi_threshs[str(xi_max_s)]
-    cgram_id = f"{xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
-    T_xi_id = f"{T_xi_type} {xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1000:.0f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, nfft={nfft}"
+    cgram_id = f"{xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1e3:.1f}ms, {pc.get_win_meth_str(win_meth)}, {get_filter_str(filter_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_s*1000:.0f}ms, hop_psd={hop_cgram_psd_s*1000:.0f}ms, nfft={nfft_cgram_and_psd}"
+    T_xi_id = f"{T_xi_type} {cgram_id}"
     for wf_idx in wf_idxs: 
         for species in speciess:
         
@@ -72,6 +75,7 @@ for xi_max_s in [0.025]:
             # convert
             tau = int(round(tau_s*fs))
             hop = int(round(hop_s*fs))
+            hop_cgram_psd = int(round(hop_cgram_psd_s*fs))
 
             cgram = load_calc_colossogram(
                 **{
@@ -84,7 +88,7 @@ for xi_max_s in [0.025]:
                     "pkl_folder": dirs["pickles"],
                     "mode": mode,
                     "tau": tau,
-                    "nfft": nfft, 
+                    "nfft": nfft_cgram_and_psd, 
                     "xi_min_s": xi_min_s,
                     "xi_max_s": xi_max_s,
                     "hop": hop,
@@ -122,7 +126,7 @@ for xi_max_s in [0.025]:
 
                 # Plot PSD 
                 wf_filt = filter_wf_cgram(wf, fs, filter_meth)
-                psd = pc.get_welch(wf=wf_filt, fs=fs, win="hann", tau=tau, nfft=nfft, hop=hop)[1]
+                psd = pc.get_welch(wf=wf_filt, fs=fs, win=win_meth["win_type"], tau=tau, nfft=nfft_cgram_and_psd, hop=hop_cgram_psd)[1]
                 psd_plot = psd[fmin_idx_plot:fmax_idx_plot]
                 psd_db_plot = 10*np.log10(psd_plot) 
                 plt.ylabel(rf"PSD [dB]", color="orange", fontsize=fsz)
@@ -171,7 +175,8 @@ for xi_max_s in [0.025]:
             for idx in range(len(f)):
                 f0 = f[idx]
                 T_xi0 = T_xis[idx]
-                row = {'species':species, 'wf_idx':wf_idx, 'f0':f0, 'mode':mode, 'T_xi':T_xi0, 'wf_fn':wf_fn, 'T_xi_type':T_xi_type}
+                psd0 = psd[idx]
+                row = {'species':species, 'wf_idx':wf_idx, 'f0':f0, 'mode':mode, 'T_xi':T_xi0, 'PSD':psd0, 'wf_fn':wf_fn, 'T_xi_type':T_xi_type}
                 rows.append(row)
     df = pd.DataFrame(rows)
     fp_sheets = os.path.join(dirs["results"], f"soae_T_xi [cgram {T_xi_id}].xlsx")
