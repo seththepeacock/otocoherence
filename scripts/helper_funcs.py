@@ -147,7 +147,7 @@ def load_calc_colossogram(
     # We now have colossogram_dict either from a saved pickle (new or old) or from the calculation; return it!
     return cgram_dict
 
-def get_dirs(root=r"c:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
+def get_dirs(root="C:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     dirs = {}
     dirs["oto"] = root
     # Get subfolders
