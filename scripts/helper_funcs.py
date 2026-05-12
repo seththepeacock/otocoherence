@@ -204,6 +204,139 @@ def get_picked_peaks(fp_pp, wf_fn=None, species=None, wf_idx=None):
 
     return picked_peaks
 
+def get_params_cgram():
+
+    wf_len_s = 60
+
+    hpf_meth = {
+        'type': 'kaiser',
+        'cf': 300,
+        'df': 50,
+        'rip': 100
+    }
+
+    mode = "phi"
+
+    # Used for both cgram and PSD for consistency
+    tau_s = 0.15 # Gives us a 10 Hz bandwidth with the Hann window
+
+    # Defining it as a fraction of tau doesn't make sense since "effective" tau changes with xi
+    # 10ms is low enough that going lower doesn't change much at all
+    hop_cgram_s = 0.01
+
+    # Half of tau
+    hop_psd_s = 0.075
+
+    nfft = None
+
+    win_meth_cgram = {
+        "method": "rho",
+        "rho": 1.0,
+        "win_type": "hann"
+    }
+
+    # Same for consistency
+    win_type_psd = win_meth_cgram["win_type"]
+
+    xi_min_s = 0.001
+    delta_xi_s = xi_min_s
+    xi_max_s = 0.025
+
+    T_xi_meth = get_params_peakc()["T_xi_meth"]
+    T_xi_len_s = get_params_peakc()["T_xi_len_s"]
+
+    pcg = {
+        'wf_len_s': wf_len_s,
+        'hpf_meth': hpf_meth,
+        'mode': mode,
+        'tau_s': tau_s,
+        'hop_cgram_s': hop_cgram_s,
+        'hop_psd_s': hop_psd_s,
+        'nfft': nfft,
+        'win_meth_cgram': win_meth_cgram,
+        'win_type_psd': win_type_psd,
+        'xi_min_s': xi_min_s,
+        "delta_xi_s": delta_xi_s,
+        'T_xi_meth': T_xi_meth,
+        "T_xi_len_s":T_xi_len_s,
+        'xi_max_s': xi_max_s
+    }
+
+    return pcg
+
+def get_params_peakc():
+    # ---PSD---
+    tau_s = 0.5
+    nfft = None
+    win_type = 'hann'
+    hop_s = tau_s / 2
+
+    # ---T_xi Extraction---
+    T_xi_meth = "int"
+    T_xi_len_s = 0.025
+    
+
+    # ---Lorentzian Fitting and Bandpass Filtering---
+    crop_bw = 200
+    bw_filt_thresh = 0.1
+    kaiser_rip = 100
+    kaiser_df = 50
+
+    bpf_params = {
+        'type': 'kaiser',
+        'rip': kaiser_rip,
+        'df': kaiser_df
+    }
+
+    wf_len_s = 60
+
+    # # p_filt = {'type':'exp', 'order':exp_order}
+    # exp_order = 10
+
+    # # Exp fit
+    # acf_exp_fit_min = 0.1
+    # acf_exp_fit_max = 0.9
+
+    # # eta cumulative fit
+    # eta = 0.9
+    # sig_thresh_eta = 0.1
+
+    return {
+        'wf_len_s': wf_len_s,
+
+        'tau_s': tau_s,
+        'nfft': nfft,
+        'win_type': win_type,
+        'hop_s': hop_s,
+
+        'T_xi_meth': T_xi_meth,
+        "T_xi_len_s": T_xi_len_s,
+
+        'crop_bw': crop_bw,
+        'bw_filt_thresh': bw_filt_thresh,
+
+        'bpf_params': bpf_params,
+    }
+
+
+def fit_and_filter(wf, fs, f, psd, f0_max_saved, ppc):
+    # Deal with different f0 definitions
+    f0_max = f[np.argmin(np.abs(f-f0_max_saved))]
+    if np.abs(f0_max-f0_max_saved) > 1e-9:
+        raise ValueError(f"Your loaded peak pick {f0_max_saved} does not match the current bin center {f0_max}!")
+
+    # Crop axes
+    crop_bw = ppc['crop_bw']
+    crop_idxs = [np.argmin(np.abs(f-(f0-crop_bw/2))), np.argmin(np.abs(f-(f0+crop_bw/2)))+1]
+    f_crop = f[crop_idxs[0]:crop_idxs[1]+1]
+    psd_crop = psd[crop_idxs[0]:crop_idxs[1]+1]
+    # Fit Lorentzian
+    f0_fit, y0_l, gamma_L, a_L, lorentz_fit = fit_lorentzian(f_crop, psd_crop)
+    # Conversions
+    f_crop_khz = f_crop / 1000
+    psd_crop_db = psd_db[crop_idxs[0]:crop_idxs[1]]
+    lorentz_fit_db = 10*np.log10(lorentz_fit)
+
     
 
 def get_peak_guesses(wf_fn=None, species=None, wf_idx=None):

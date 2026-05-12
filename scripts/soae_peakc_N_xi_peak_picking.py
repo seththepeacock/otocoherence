@@ -16,17 +16,18 @@ for species in ['Tokay','Anole', 'Human', 'Owl',]:
         good_peak_freqs = get_peak_guesses(species=species, wf_idx=wf_idx)
         bad_peak_freqs = []
         print(f"Processing {species} {wf_idx} ({fs}Hz)")
-        wf_len_s = 60
         wf = crop_wf(wf, fs, wf_len_s)
 
         "PARAMETERS"
         plot = 0
         check_guesses = 0
-        tau_s = 0.5 # old was tau = 2**14
-        nfft = None
-        hop_s = tau_s / 2
+        ppc = get_params_peakc()
+        wf_len_s = ppc["wf_len_s"]
+        tau_s = ppc["tau_s_psd"]
+        nfft = ppc["nfft_psd"]
+        hop_s = ppc["hop_s_psd"]
         tau, hop = int(round(tau_s*fs)), int(round(hop_s*fs))
-        win_type = 'hann'
+        win_type = ppc["win_type_psd"]
 
 
         max_khzs = {
