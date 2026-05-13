@@ -4,7 +4,7 @@ import scipy as sp
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.signal import find_peaks, kaiserord, firwin, lfilter, get_window
+from scipy.signal import find_peaks, hilbert, kaiserord, firwin, lfilter, get_window
 import os
 import pickle
 from phaseco import *
@@ -154,10 +154,16 @@ def get_dirs(root="C:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     for subfolder in ["scripts", "results", "pickles", "data"]:
         dirs[subfolder] = os.path.join(dirs["oto"], subfolder)
     # subsubdirs
-    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_PSDs", "T_xi_int", "figs"]:
+    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_PSDs", "T_xi_int", "figs", "Human Peak Picks (Fig.4)"]:
         dirs[results_subfolder] = os.path.join(dirs["results"], results_subfolder)
     for dir in dirs.values():
         os.makedirs(dir, exist_ok=True)
+
+    # A couple more
+    dirs["C_xi_phi Plots"] = os.path.join(dirs["Human Peak Picks (Fig.4)"], "C_xi_phi Plots")
+    dirs["additional_humans"] = os.path.join(dirs["data"], "additional_humans")
+    os.makedirs(dirs["C_xi_phi Plots"], exist_ok=True)
+    os.makedirs(dirs["additional_humans"], exist_ok=True)
     return dirs
 
 def get_wf_fn(wf_fn=None, species=None, wf_idx=None):
@@ -208,11 +214,16 @@ def get_params_cgram():
 
     wf_len_s = 60
 
+    hpf_cf = 300
+    hpf_df = 50
+    hpf_rip = 100
+    
+
     hpf_meth = {
         'type': 'kaiser',
-        'cf': 300,
-        'df': 50,
-        'rip': 100
+        'cf': hpf_cf,
+        'df': hpf_df,
+        'rip': hpf_rip
     }
 
     mode = "phi"
@@ -274,12 +285,14 @@ def get_params_peakc():
     # ---T_xi Extraction---
     T_xi_meth = "int"
     T_xi_len_s = 0.025
-    
 
     # ---Lorentzian Fitting and Bandpass Filtering---
     crop_bw = 200
     bw_filt_thresh = 0.1
+    print("Note we're using a 50 dB rip, crank that up to 100!")
     kaiser_rip = 100
+    kaiser_rip = 50
+    
     kaiser_df = 50
 
     bpf_params = {
@@ -314,31 +327,83 @@ def get_params_peakc():
 
         'crop_bw': crop_bw,
         'bw_filt_thresh': bw_filt_thresh,
-
         'bpf_params': bpf_params,
     }
 
 
-def fit_and_filter(wf, fs, f, psd, f0_max_saved, ppc):
+def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_len_s=None):
+    if T_xi_len_s is None:
+        T_xi_len_s = ppc['T_xi_len_s']
     # Deal with different f0 definitions
     f0_max = f[np.argmin(np.abs(f-f0_max_saved))]
     if np.abs(f0_max-f0_max_saved) > 1e-9:
         raise ValueError(f"Your loaded peak pick {f0_max_saved} does not match the current bin center {f0_max}!")
-
     # Crop axes
     crop_bw = ppc['crop_bw']
-    crop_idxs = [np.argmin(np.abs(f-(f0-crop_bw/2))), np.argmin(np.abs(f-(f0+crop_bw/2)))+1]
+    crop_idxs = [np.argmin(np.abs(f-(f0_max_saved-crop_bw/2))), np.argmin(np.abs(f-(f0_max_saved+crop_bw/2)))+1]
     f_crop = f[crop_idxs[0]:crop_idxs[1]+1]
     psd_crop = psd[crop_idxs[0]:crop_idxs[1]+1]
     # Fit Lorentzian
     f0_fit, y0_l, gamma_L, a_L, lorentz_fit = fit_lorentzian(f_crop, psd_crop)
-    # Conversions
-    f_crop_khz = f_crop / 1000
-    psd_crop_db = psd_db[crop_idxs[0]:crop_idxs[1]]
-    lorentz_fit_db = 10*np.log10(lorentz_fit)
+    
+    # Get point at which lorentzian hits bw_filt_thresh % of total
+    fmin_filt, fmax_filt = get_band(f, f0_fit, gamma_L, ppc['bw_filt_thresh'])
+    bw_filt = fmax_filt - fmin_filt
+
+    # Filter and demean
+    wf -= np.mean(wf)
+    wf_filt = filter_wf(wf, fs, fmin_filt, fmax_filt, ppc['bpf_params'])
+    wf_filt -= np.mean(wf_filt)
+
+    # Get analytic signal
+    wf_filt_h = hilbert(wf_filt)
+    wf_filt_h_phi = wf_filt_h / np.abs(wf_filt_h)
+    acf_full = correlate(wf_filt_h, wf_filt_h, mode='full', method='auto')
+    acf_phi_full = correlate(wf_filt_h_phi, wf_filt_h_phi, mode='full', method='auto')
+    
+    # Get lags 
+    N = len(wf_filt_h)
+    lags_full = correlation_lags(N, N, mode='full')
+
+    # Crop to positive lags (symmetric)
+    lags_full, acf_full, acf_phi_full = lags_full[N-1:], acf_full[N-1:], acf_phi_full[N-1:]
+
+    # Convert to seconds
+    lags_full_s = lags_full / fs
+    
+    # Crop acf and lags to T_xi_len_s
+    max_lag_idx = np.argmin(np.abs(lags_full-T_xi_len_s*fs)) # Final lag is max_lag_s (inclusive)
+    lags = lags_full[:max_lag_idx+1]
+    lags_s = lags_full_s[:max_lag_idx+1]
+    acf = acf_full[:max_lag_idx+1]
+    acf_phi = acf_phi_full[:max_lag_idx+1]
+
+    # Normalize acf 
+    num_terms = N-lags
+    num_terms_full = N-lags_full
+    var = np.abs(acf[0])/N
+    acf, acf_full = np.abs(acf)/(num_terms*var), np.abs(acf_full)/(num_terms_full*var)
+    acf_phi, acf_phi_full = np.abs(acf_phi) / num_terms, np.abs(acf_phi_full) / num_terms_full
+
+
+    return {
+        'acf':acf,
+        'acf_phi':acf_phi,
+        'lags_s':lags_s,
+        'acf_full':acf_full,
+        'acf_phi_full':acf_phi_full,
+        'lags_full_s':lags_full_s,
+        'wf_filt':wf_filt,
+        'f0_fit':f0_fit,
+        'f_crop':f_crop,
+        'crop_idxs':crop_idxs,
+        'lorentz_fit':lorentz_fit,
+        'bw_filt':bw_filt,
+        'gamma_L':gamma_L,
+        'a_L':a_L,
+    }
 
     
-
 def get_peak_guesses(wf_fn=None, species=None, wf_idx=None):
     wf_fn = get_wf_fn(wf_fn, species, wf_idx)
     # Get peak list
