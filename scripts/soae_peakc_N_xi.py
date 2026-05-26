@@ -24,9 +24,7 @@ nfft = ppc['nfft']
 win_type = ppc['win_type']
 hop_s = ppc['hop_s']
 T_xi_meth = ppc['T_xi_meth']
-crop_bw = ppc['crop_bw']
-bw_filt_thresh = ppc['bw_filt_thresh']
-bpf_params = ppc['bpf_params']
+filt_id = ppc['filt_id']
 # T_xi_len is defined in the loop 
 
 
@@ -45,16 +43,16 @@ lw_fit = 5
 
 
 # ID
-match bpf_params['type']:
-    case 'kaiser':
-        if bpf_params["df"] < 1:
-            df = f"{bpf_params["df"]*100:.0f}p bw"
-        else:
-            df = f"{bpf_params["df"]}hz"
-        bpf_id = f"kaiser, df={df}, rip={bpf_params['rip']}db"
-    case 'exp':
-        bpf_id = f"exp, order={bpf_params['order']}hz"
-filt_id = f"bw={bw_filt_thresh*100:.0f}p max, {bpf_id}, crop={crop_bw}hz, tau={tau_s*1000:.0f}ms, hop_psd={hop_s*1000:.0f}ms, nfft={nfft}, win={win_type}"
+# match bpf_params['type']:
+#     case 'kaiser':
+#         if bpf_params["df"] < 1:
+#             df = f"{bpf_params["df"]*100:.0f}p bw"
+#         else:
+#             df = f"{bpf_params["df"]}hz"
+#         bpf_id = f"kaiser, df={df}, rip={bpf_params['rip']}db"
+#     case 'exp':
+#         bpf_id = f"exp, order={bpf_params['order']}hz"
+# filt_id = f"bw={bw_filt_thresh*100:.0f}p max, {bpf_id}, crop={crop_bw}hz, tau={tau_s*1000:.0f}ms, hop_psd={hop_s*1000:.0f}ms, nfft={nfft}, win={win_type}"
 
 for T_xi_len_s in [0.5, 0.1]:
     # Initialize spreadsheet rows
@@ -67,7 +65,6 @@ for T_xi_len_s in [0.5, 0.1]:
             wf, wf_fn, fs = get_wf(species=species, wf_idx=wf_idx)
             fp_pp = os.path.join(dirs["results"], "picked_peaks.json")
             picked_peaks = get_picked_peaks(fp_pp, wf_fn)
-            wf = crop_wf(wf, fs, wf_len_s)
             
             # Convert from fs
             tau = int(round(tau_s * fs))
@@ -125,7 +122,7 @@ for T_xi_len_s in [0.5, 0.1]:
                 psd_filt = pc.get_welch(fab['wf_filt'], fs, tau, hop=hop, win=win_type, nfft=nfft)[1]
                 psd_filt_db = 10*np.log10(psd_filt)
 
-                # Plot individual fits
+                # Plot individual lorentzian fit
                 plt.figure(f"{f0_max_round}", figsize=figsize_ind)
                 plt.plot(f_khz_crop_plus, psd_crop_plus, label='PSD', color='k', lw=2, alpha=0.7)
                 plt.plot(f_crop_khz, lorentz_fit, label="Lorentzian Fit", color='green', lw=5, alpha=0.3)
@@ -142,8 +139,8 @@ for T_xi_len_s in [0.5, 0.1]:
 
                 if T_xi_meth == "exp":
                     # Crop to fit exponentials
-                    acf_crop_slice = slice(np.argmax(acf < ppc['acf_exp_fit_max']), np.argmax(acf < acf_exp_fit_min))
-                    acf_phi_crop_slice = slice(np.argmax(acf_phi < ppc['acf_exp_fit_max']), np.argmax(acf_phi < acf_exp_fit_min))
+                    acf_crop_slice = slice(np.argmax(acf < ppc['acf_exp_fit_max']), np.argmax(acf < ppc['acf_exp_fit_min']))
+                    acf_phi_crop_slice = slice(np.argmax(acf_phi < ppc['acf_exp_fit_max']), np.argmax(acf_phi < ppc['acf_exp_fit_min']))
                     acf_crop = acf[acf_crop_slice]
                     acf_phi_crop = acf_phi[acf_phi_crop_slice]
                     

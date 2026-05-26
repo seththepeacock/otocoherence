@@ -60,7 +60,6 @@ for xi_max_s in [0.025, 0.05, 0.1]:
             print(f"{species} {wf_idx}")
             # Get wf
             wf, wf_fn, fs = get_wf(species=species, wf_idx=wf_idx)
-            wf = crop_wf(wf, fs, wf_len_s)
             # convert
             tau_cgram_psd = int(round(tau_s*fs))
             hop_cgram = int(round(hop_cgram_s*fs))

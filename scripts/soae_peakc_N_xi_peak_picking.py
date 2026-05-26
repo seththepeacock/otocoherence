@@ -16,7 +16,6 @@ for species in ['Tokay','Anole', 'Human', 'Owl',]:
         good_peak_freqs = get_peak_guesses(species=species, wf_idx=wf_idx)
         bad_peak_freqs = []
         print(f"Processing {species} {wf_idx} ({fs}Hz)")
-        wf = crop_wf(wf, fs, wf_len_s)
 
         "PARAMETERS"
         plot = 0

@@ -15,6 +15,18 @@ from scipy.fft import rfft, rfftfreq, irfft
 from tqdm import tqdm
 from collections import defaultdict
 
+def get_cp():
+    # Paul Tol's "Muted" color palette
+    return {
+        "purple":"#332288",
+        "green": "#117733",
+        "teal": "#44AA99",
+        "blue":"#88CCEE",
+        "yellow":"#DDCC77",
+        "salmon":"#CC6677",
+        "violet":"#AA4499",
+        "burgundy":"#882255"
+    }
 
 def load_calc_colossogram(
     wf,
@@ -43,6 +55,8 @@ def load_calc_colossogram(
     f0s=None,
     nbacf=False,
 ):
+    if not demean:
+        raise ValueError("De-meaning is now done automatically when loading waveform!")
     # Make sure this is a numpy array
     if f0s is not None:
         f0s = np.array(f0s)
@@ -92,16 +106,18 @@ def load_calc_colossogram(
 
         # First, process the wf (unless it's already processed)
         if wf_pp is None:
+            # These are now done automatically in get_wf()
+            # # Crop wf
+            # wf = crop_wf(wf, fs, wf_len_s)
 
-            # Crop wf
-            wf = crop_wf(wf, fs, wf_len_s)
+            # # Subtract mean
+            # if demean:
+            #     wf = wf - np.mean(wf)
 
             if scale:  # Scale wf
                 wf = scale_wf(wf, species)
 
-            # Subtract mean
-            if demean:
-                wf = wf - np.mean(wf)
+            
 
             # Apply filter (filter_meth could be None)
             wf = filter_wf_cgram(wf, fs, filter_meth)
@@ -153,17 +169,22 @@ def get_dirs(root="C:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     # Get subfolders
     for subfolder in ["scripts", "results", "pickles", "data"]:
         dirs[subfolder] = os.path.join(dirs["oto"], subfolder)
-    # subsubdirs
-    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_PSDs", "T_xi_int", "figs", "Human Peak Picks (Fig.4)"]:
+    # results subsubdirs
+    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_PSDs", "T_xi_int", "figs", "pp_human"]:
         dirs[results_subfolder] = os.path.join(dirs["results"], results_subfolder)
     for dir in dirs.values():
         os.makedirs(dir, exist_ok=True)
 
     # A couple more
-    dirs["C_xi_phi Plots"] = os.path.join(dirs["Human Peak Picks (Fig.4)"], "C_xi_phi Plots")
     dirs["additional_humans"] = os.path.join(dirs["data"], "additional_humans")
-    os.makedirs(dirs["C_xi_phi Plots"], exist_ok=True)
+    dirs["pickles_NDDHO"] = os.path.join(dirs["pickles"], "NDDHO")
+    dirs["psd_NDDHO"] = os.path.join(dirs["psd"], "NDDHO")
+    dirs["T_xi_int_NDDHO"] = os.path.join(dirs["T_xi_int"], "NDDHO")
+    
     os.makedirs(dirs["additional_humans"], exist_ok=True)
+    os.makedirs(dirs["pickles_NDDHO"], exist_ok=True)
+    os.makedirs(dirs["psd_NDDHO"], exist_ok=True)
+    os.makedirs(dirs["T_xi_int_NDDHO"], exist_ok=True)
     return dirs
 
 def get_wf_fn(wf_fn=None, species=None, wf_idx=None):
@@ -174,7 +195,7 @@ def get_wf_fn(wf_fn=None, species=None, wf_idx=None):
             wf_fn = get_fn(species, wf_idx)
     return wf_fn
 
-def get_wf(wf_fn=None, species=None, wf_idx=None):
+def get_wf(wf_fn=None, species=None, wf_idx=None, wf_len_s=60, demean=True):
     wf_fn = get_wf_fn(wf_fn, species, wf_idx)
 
     # Load wf
@@ -196,6 +217,13 @@ def get_wf(wf_fn=None, species=None, wf_idx=None):
         fs = 50000
     else:
         fs = 44100
+    
+    # Preprocess
+    if wf_len_s is not None:
+        print("Cropping waveform!")
+        wf = crop_wf(wf, fs, wf_len_s)
+    if demean:
+        wf -= np.mean(wf)
 
     return wf, wf_fn, fs
 
@@ -212,8 +240,6 @@ def get_picked_peaks(fp_pp, wf_fn=None, species=None, wf_idx=None):
 
 def get_params_cgram():
 
-    wf_len_s = 60
-
     hpf_cf = 300
     hpf_df = 50
     hpf_rip = 100
@@ -226,8 +252,6 @@ def get_params_cgram():
         'rip': hpf_rip
     }
 
-    mode = "phi"
-
     # Used for both cgram and PSD for consistency
     tau_s = 0.15 # Gives us a 10 Hz bandwidth with the Hann window
 
@@ -236,7 +260,7 @@ def get_params_cgram():
     hop_cgram_s = 0.01
 
     # Half of tau
-    hop_psd_s = 0.075
+    hop_psd_s = tau_s / 2
 
     nfft = None
 
@@ -253,8 +277,14 @@ def get_params_cgram():
     delta_xi_s = xi_min_s
     xi_max_s = 0.025
 
-    T_xi_meth = get_params_peakc()["T_xi_meth"]
-    T_xi_len_s = get_params_peakc()["T_xi_len_s"]
+    ppc = get_params_peakc()
+    T_xi_meth = ppc["T_xi_meth"]
+    T_xi_len_s = ppc["T_xi_len_s"]
+    mode = ppc["mode"]
+    wf_len_s = ppc["wf_len_s"]
+
+    if xi_max_s != T_xi_len_s:
+        raise ValueError("You have a disagreement between xi_max_s and T_xi_len_s parameters...")
 
     pcg = {
         'wf_len_s': wf_len_s,
@@ -272,6 +302,11 @@ def get_params_cgram():
         "T_xi_len_s":T_xi_len_s,
         'xi_max_s': xi_max_s
     }
+    # Add final ids
+    meth_id_cgram = f"cgram {pcg['T_xi_meth']} {pcg['xi_max_s']*1000:.0f}ms, delta_xi={pcg['delta_xi_s']*1000}ms, {pc.get_win_meth_str(pcg['win_meth_cgram'])}, {get_filter_str(pcg['hpf_meth'])}, tau={pcg['tau_s']*1000:.0f}ms, hop={pcg['hop_cgram_s']*1000:.0f}ms, hop_psd={pcg['hop_psd_s']*1000:.0f}ms, nfft={pcg['nfft']}"
+    pcg["meth_id"] = meth_id_cgram
+    T_xi_id = f"{T_xi_meth} {T_xi_len_s*1000:.0f}ms"
+    pcg["T_xi_id"] = T_xi_id
 
     return pcg
 
@@ -285,11 +320,12 @@ def get_params_peakc():
     # ---T_xi Extraction---
     T_xi_meth = "int"
     T_xi_len_s = 0.025
+    mode = "phi"
 
     # ---Lorentzian Fitting and Bandpass Filtering---
     crop_bw = 200
     bw_filt_thresh = 0.1
-    print("Note we're using a 50 dB rip, crank that up to 100!")
+    print("Note we're using a 50 dB rip on BPF, crank that up to 100!")
     kaiser_rip = 100
     kaiser_rip = 50
     
@@ -303,24 +339,20 @@ def get_params_peakc():
 
     wf_len_s = 60
 
-    # # p_filt = {'type':'exp', 'order':exp_order}
-    # exp_order = 10
+    # Exp fit
+    acf_exp_fit_min = 0.1
+    acf_exp_fit_max = 0.9
 
-    # # Exp fit
-    # acf_exp_fit_min = 0.1
-    # acf_exp_fit_max = 0.9
-
-    # # eta cumulative fit
-    # eta = 0.9
-    # sig_thresh_eta = 0.1
-
-    return {
+    # eta cumulative fit
+    eta = 0.9
+    sig_thresh_eta = 0.1
+    ppc = {
         'wf_len_s': wf_len_s,
-
         'tau_s': tau_s,
         'nfft': nfft,
         'win_type': win_type,
         'hop_s': hop_s,
+        'mode':mode,
 
         'T_xi_meth': T_xi_meth,
         "T_xi_len_s": T_xi_len_s,
@@ -328,6 +360,60 @@ def get_params_peakc():
         'crop_bw': crop_bw,
         'bw_filt_thresh': bw_filt_thresh,
         'bpf_params': bpf_params,
+        # Retired params
+        'eta':eta,
+        'sig_thresh_eta':sig_thresh_eta,
+        'acf_exp_fit_min':acf_exp_fit_min,
+        'acf_exp_fit_max':acf_exp_fit_max,
+    }
+    # Add final ids
+    filt_id = f"bw={ppc['bw_filt_thresh']*100:.0f}p max, kaiser, df={ppc['bpf_params']["df"]}hz, rip={ppc['bpf_params']["rip"]}db, crop={ppc["crop_bw"]}hz, tau={ppc["tau_s"]*1000:.0f}ms, hop_psd={ppc["hop_s"]*1000:.0f}ms, nfft={ppc["nfft"]}, win={ppc["win_type"]}"
+    ppc["filt_id"] = filt_id
+    T_xi_id = f"int {ppc["T_xi_len_s"]*1000:.0f}ms"
+    ppc["T_xi_id"] = T_xi_id
+    return ppc
+
+def get_params_human_picking():
+    pcg = get_params_cgram()
+    hpf_meth = pcg["hpf_meth"]
+    fs = 44100
+    xi_s = 0.01508
+    tau_s = 0.06966
+    # tau = round(int(tau_s * fs)) # 3072
+    # xi = round(int(xi_s * fs)) # 665   
+    hop_C_s = pcg["hop_cgram_s"]
+    hop_mag_s = hop_C_s
+    win_C = "hann"
+    win_meth_C = {"method": "rho", "rho": 1.0, "win_type": win_C}
+    win_mag = win_C
+    # wf_len_s = get_params_peakc()["wf_len_s"]
+    wf_len_s = None
+    avg_meth = "power"
+    flim = [500, 10000]
+    # Peak picking params
+    wlen_hz = 200 # Hz (Full width)
+    prominence_C = 3 #dB
+    prominence_mag = 2 #dB
+    if hop_C_s != hop_mag_s:
+        raise ValueError("You should change your meth_id!")
+    meth_id=f"prom_C={prominence_C}, prom_mag={prominence_mag}, hpf_meth={get_filter_str(hpf_meth)}, fs={fs}, tau={tau_s*1000}ms, xi={xi_s*1000}ms, hop_C=hop_mag={hop_mag_s*1000}ms, {pc.get_win_meth_str(win_meth_C)}, win_mag={win_mag}, avg_meth={avg_meth}, flim={flim}, wf_len_s={wf_len_s}"
+    return {
+        "hpf_meth":hpf_meth,
+        "fs":fs,
+        "win_meth_C":win_meth_C,
+        "tau_s":tau_s,
+        "xi_s":xi_s,
+        "hop_C_s":hop_C_s,
+        "hop_mag_s":hop_mag_s,
+        "win_C":win_C,
+        "win_mag":win_mag,
+        "wf_len_s":wf_len_s,
+        "avg_meth":avg_meth,
+        "flim":flim,
+        "meth_id":meth_id,
+        "prominence_C":prominence_C,
+        "prominence_mag":prominence_mag,
+        "wlen_hz":wlen_hz
     }
 
 
@@ -351,9 +437,8 @@ def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_len_s=None):
     bw_filt = fmax_filt - fmin_filt
 
     # Filter and demean
-    wf -= np.mean(wf)
     wf_filt = filter_wf(wf, fs, fmin_filt, fmax_filt, ppc['bpf_params'])
-    wf_filt -= np.mean(wf_filt)
+    wf_filt -= np.mean(wf_filt) # Do it again after filtering for good measure
 
     # Get analytic signal
     wf_filt_h = hilbert(wf_filt)
@@ -1034,7 +1119,6 @@ def fit_lorentzian(f, psd):
 
 
 
-
 def get_hop_from_hop_thing(hop_thing, tau, fs):
     match hop_thing[0]:
         case "tau":
@@ -1089,8 +1173,22 @@ def get_excluded_fits(kind):
             # ("Anole", 1, 3023),
             # ("Anole", 2, 1811),
 
-
-def get_human_peak_freqs(wf_fn):
+def get_human_fns():
+    return [
+        "human_TH14RearwaveformSOAEshort",
+        "human_RRrearSOAEwf1short",
+        "human_TH13RearwaveformSOAEshort",
+        "human_KClearSOAEwf2",
+        "human_AP7RearwaveformSOAEshort",
+        "human_coNW_fgF090728R",
+        "human_TH21RearwaveformSOAE",
+        "human_AVGrearSOAEwf2",
+        "human_FMlearSOAEwfA01",
+        "human_JBrearSOAEwf2short",
+        "human_LSrearSOAEwf1short",
+        "human_JIrearSOAEwf2short",
+    ]
+def get_human_peak_freqs_manual(wf_fn, khz=True):
     match wf_fn:
         case "human_TH14RearwaveformSOAEshort":
             mag_freqs = [0.6, 0.86, 0.93, 1.26, 1.62, 2.26, 2.83, 4.38]
@@ -1373,8 +1471,10 @@ def get_human_peak_freqs(wf_fn):
                 8.314,
                 8.685,
             ]
-
-    return np.array(mag_freqs), np.array(C_freqs)
+    if not khz:
+        return np.array(mag_freqs)*1000, np.array(C_freqs)*1000
+    else:
+        return np.array(mag_freqs), np.array(C_freqs)
 
 
 # # Chris' list before I removed some
