@@ -54,7 +54,7 @@ lw_fit = 5
 #         bpf_id = f"exp, order={bpf_params['order']}hz"
 # filt_id = f"bw={bw_filt_thresh*100:.0f}p max, {bpf_id}, crop={crop_bw}hz, tau={tau_s*1000:.0f}ms, hop_psd={hop_s*1000:.0f}ms, nfft={nfft}, win={win_type}"
 
-for T_xi_len_s in [0.5, 0.1]:
+for T_xi_len_s in [0.5, 0.025, 0.1]:
     # Initialize spreadsheet rows
     rows = []
     for species in speciess:
@@ -91,7 +91,7 @@ for T_xi_len_s in [0.5, 0.1]:
             for f0_max_saved, color in zip(picked_peaks, get_colors('good')):
                 f0_max_round = int(round(f0_max_saved)) # Useful for user-facing things
 
-                fab = fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc)
+                fab = fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_len_s=T_xi_len_s)
                 f_crop = fab['f_crop']
                 crop_idxs = fab['crop_idxs']
                 lorentz_fit = fab['lorentz_fit']

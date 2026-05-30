@@ -18,15 +18,16 @@ for species in ['Tokay','Anole', 'Human', 'Owl',]:
         print(f"Processing {species} {wf_idx} ({fs}Hz)")
 
         "PARAMETERS"
-        plot = 0
+        plot = 1
+        show_plot = 0
         check_guesses = 0
         ppc = get_params_peakc()
         wf_len_s = ppc["wf_len_s"]
-        tau_s = ppc["tau_s_psd"]
-        nfft = ppc["nfft_psd"]
-        hop_s = ppc["hop_s_psd"]
+        tau_s = ppc["tau_s"]
+        nfft = ppc["nfft"]
+        hop_s = ppc["hop_s"]
         tau, hop = int(round(tau_s*fs)), int(round(hop_s*fs))
-        win_type = ppc["win_type_psd"]
+        win_type = ppc["win_type"]
 
 
         max_khzs = {
@@ -96,6 +97,8 @@ for species in ['Tokay','Anole', 'Human', 'Owl',]:
             plt.legend()
             plt.xlim(0, max_khz*1000)
             plt.tight_layout()
+            plt.savefig(os.path.join(dirs["peakc_picked_peaks"], f"{species} {wf_idx} Picked Peaks.jpg"), dpi=300)
+        if show_plot:
             plt.show()
         
 

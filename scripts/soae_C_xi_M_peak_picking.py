@@ -6,6 +6,7 @@ from helper_funcs import *
 import scipy.signal as signal
 import pandas as pd
 
+
 # Output params
 show_plots = 0
 output_plots = 1
@@ -70,7 +71,7 @@ def plot_sticknbase(f, y, idxs, thresh_db, stick_hw, stick_lw, color):
 rows_mag = []
 rows_C = []
 
-pp_params_subfolders = [("scipy", "v3", ""), ("scipy", "v3_mag", "")]
+pp_params_subfolders = [("scipy", "v3", "")]
 # pp_params_subfolders = [("scipy", "v3_mag", "")]
 
 "Start Analysis Loop"
@@ -164,6 +165,9 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 ref_type="time",
             )
             mag = pc.get_welch(wf, fs, tau, nfft=tau, hop=hop_mag, win=win_mag, avg_exp=1)[1]
+            # Convert to db (both 20 because never using squares of any kind)
+            C_xi_M = 20 * np.log10(C_xi_M) 
+            mag = 20 * np.log10(mag) 
         elif avg_meth == "power":
             f, C_xi_M = pc.get_autocoherence(
                 wf,
@@ -176,15 +180,14 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 mode="P2",
                 ref_type="time",
             ) # P2 (and P) take the sqrt at the end
-            mag = pc.get_welch(wf, fs, tau, nfft=tau, hop=hop_mag, win=win_mag, avg_exp=2, scaling="amplitude")[1] 
-            # With scaling="amplitude", this takes the sqrt at the end
+            mag = pc.get_welch(wf, fs, tau, nfft=tau, hop=hop_mag, win=win_mag, avg_exp=2, scaling="density")[1] 
+            # Convert to db
+            C_xi_M = 20 * np.log10(C_xi_M) # still 20 because C_xi_P2 takes sqrt at the end for comparison with C_xi_phi
+            mag = 10 * np.log10(mag) # 10 because scaling = density (no sqrt taken)
 
-        # Convert to dB and kHz
-        C_xi_M, mag = 20 * np.log10(np.array([C_xi_M, mag])) # Both are 20 because you use scaling="amplitude"
         bin_width = f[1] - f[0]
-        # f = f / 1000
 
-        # Calculate C_xi_phi
+        # Calculate C_xi_phi (no longer used)
         C_xi_phi = pc.get_autocoherence(
                 wf,
                 fs,
@@ -220,163 +223,180 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
         peak_idxs_C = peak_idxs_C[keep_mask_C]
         peak_idxs_mag = peak_idxs_mag[keep_mask_mag]
 
-        # Shift spectra so minimum within the main range is 0 dB
-        fmin_0db_ref = 500
-        fmax_0db_ref = 10000
-        fmin_idx_0db_ref, fmax_idx_0db_ref = np.argmin(np.abs(f-fmin_0db_ref)), np.argmin(np.abs(f-fmax_0db_ref))
-        C_xi_M = C_xi_M - np.min(C_xi_M[fmin_idx_0db_ref:fmax_idx_0db_ref])
-        mag = mag - np.min(mag[fmin_idx_0db_ref:fmax_idx_0db_ref])
-        ymin_mag = -2
-        ymax_mag = 75
-        ymin_C, ymax_C = ymin_mag, ymax_mag
-
 
         # Deal with C_xi thresh requirement
         peak_idxs_C_unthreshed  = peak_idxs_C
         keep_mask_C_xi_thresh = (C_xi_phi[peak_idxs_C] > C_xi_thresh)
         peak_idxs_C_above_thresh = peak_idxs_C[keep_mask_C_xi_thresh]
-        peak_idxs_C_removed = np.setdiff1d(peak_idxs_C_unthreshed, peak_idxs_C)
+        peak_idxs_C_removed_C_xi_thresh = np.setdiff1d(peak_idxs_C_unthreshed, peak_idxs_C)
         if check_C_xi:
             peak_idxs_C = peak_idxs_C_above_thresh
+
+        # Deal with manually excluded peaks
+        peak_idxs_C_manually_excluded = []
+        for freq in php["C_ignore"].get(wf_fn, []):
+            # 1. compute which f-values are within manual_thresh of freq
+            mask = np.abs(f[peak_idxs_C] - freq) <= php["manual_thresh"]
+
+            # 2. get the actual indices into f
+            matching_idxs = peak_idxs_C[mask]
+
+            # 3. if any match, append them to the exclusion list
+            if matching_idxs.size > 0:
+                peak_idxs_C_manually_excluded.extend(matching_idxs.tolist())
+        peak_idxs_C = np.setdiff1d(peak_idxs_C, peak_idxs_C_manually_excluded)
 
 
         # Get diffs 
         mag_not_C_idxs = np.setdiff1d(peak_idxs_mag, peak_idxs_C)
         C_not_mag_idxs = np.setdiff1d(peak_idxs_C, peak_idxs_mag)
 
-        xmin = fmin - fpad
-        xmax = fmax + fpad
         # # Switch xmax to be the maximum one that actually exists
         # xmax = f[np.max(np.concat([peak_idxs_C_unthreshed, peak_idxs_mag]))] + fpad
 
         "Start Plot"
         os.makedirs(os.path.join(dirs["pp_human"], subfolder), exist_ok=True)
         plt.close("all")
-        plt.figure(figsize=(10, 9))
-        if avg_meth == "mag":
-            C_xi_M_str = rf"$C_\xi^M$" 
-            mag_str = r"AMag"
-        elif avg_meth == "power":
-            C_xi_M_str = rf"$C_\xi^P$"
-            mag_str = r"PSD"
-        else:
-            raise ValueError(f"Invalid avg_meth={avg_meth}!")
-
-        # Magnitudes
-        p = 1 if plot_C_xi else 0 
-        plt.subplot(2+p, 1, 1)
-        plt.plot(f, mag, label=mag_str, color="k", alpha=0.5)
-        # Mark picks
-        plt.scatter(
-            f[peak_idxs_mag],
-            mag[peak_idxs_mag],
-            color="orange",
-            marker="x",
-            s=s_pick_mag,
-            label=rf" > {prominence_mag}dB in {mag_str}",
-        )
-        plot_sticknbase(f, mag, peak_idxs_mag, prominence_mag, stick_hw, stick_lw, "orange")
-        if pp_type == "scipy" and plot_bases:
-            bases_left, bases_right = peak_properties_mag["left_bases"], peak_properties_mag["right_bases"]
-            plt.scatter(f[bases_left], mag[bases_left], color="green", s=s_bases)
-            plt.scatter(f[bases_right], mag[bases_right], color="green", s=s_bases)
-
-        if plot_diffs:
-            # Mark ones that were in C but not mag
-            plt.scatter(
-                f[C_not_mag_idxs],
-                mag[C_not_mag_idxs],
-                color="b",
-                marker="*",
-                s=s_pick_mag,
-                label=rf"> {prominence_C}dB {C_xi_M_str}, not > {prominence_mag}dB {mag_str}",
-            )
-            plot_sticknbase(f, mag, C_not_mag_idxs, prominence_mag, stick_hw, stick_lw, "b")
+        for fig in ["lf", "hf"]:
+            match fig:
+                case "lf":
+                    xmin, xmax = 500, 8100
+                case "hf":
+                    xmin, xmax = 7900, f[-1]
             
-        # Set lims and labels
-        plt.ylim(ymin_mag, ymax_mag)
-        plt.xlim(xmin, xmax)
-        plt.ylabel(f"{mag_str} [dB]", fontsize=12)
-        plt.xlabel("Frequency [Hz]", fontsize=12)
-        plt.legend()
+            # Shift spectra so minimum within the main range is 0 dB
+            xmin_idx, xmax_idx = np.argmin(np.abs(f-xmin)), np.argmin(np.abs(f-xmax))
+            C_xi_M = C_xi_M - np.min(C_xi_M[xmin_idx:xmax_idx+1])
+            mag = mag - np.min(mag[xmin_idx:xmax_idx+1])
+            ymin_mag = np.min([-2, np.min(C_xi_M[xmin_idx:xmax_idx+1]-1), np.min(mag[xmin_idx:xmax_idx+1]-1)])
+            ymax_mag = np.max([75, np.max(C_xi_M[xmin_idx:xmax_idx+1]+5), np.max(mag[xmin_idx:xmax_idx+1]+5)])
+            ymin_C, ymax_C = ymin_mag, ymax_mag
 
-        # C_xi_M
-        plt.subplot(2+p, 1, 2)
-        plt.plot(f, C_xi_M, label=rf"{C_xi_M_str}", color="k", alpha=0.5)
-        # Mark Picks
-        plt.scatter(
-            f[peak_idxs_C],
-            C_xi_M[peak_idxs_C],
-            color="b",
-            marker="*",
-            s=s_pick_C,
-            label=rf"> {prominence_C}dB in {C_xi_M_str}",
-        )
-        plot_sticknbase(f, C_xi_M, peak_idxs_C, prominence_C, stick_hw, stick_lw, "b")
-        if pp_type == "scipy" and plot_bases:
-            bases_left, bases_right = peak_properties_C["left_bases"], peak_properties_C["right_bases"]
-            plt.scatter(f[bases_left], C_xi_M[bases_left], color="green", s=s_bases)
-            plt.scatter(f[bases_right], C_xi_M[bases_right], color="green", s=s_bases)
-        if plot_diffs:
-            # Plot the diffs
+            plt.figure(fig, figsize=(11, 6))
+            if avg_meth == "mag":
+                C_xi_M_str = rf"$C_\xi^M$" 
+                mag_str = r"AMag"
+            elif avg_meth == "power":
+                C_xi_M_str = rf"$C_\xi^P$"
+                mag_str = r"PSD"
+            else:
+                raise ValueError(f"Invalid avg_meth={avg_meth}!")
+
+            # Magnitudes
+            p = 1 if plot_C_xi else 0 
+            plt.subplot(2+p, 1, 1)
+            plt.plot(f, mag, label=mag_str, color="k", alpha=0.5)
+            # Mark picks
             plt.scatter(
-                f[mag_not_C_idxs],
-                C_xi_M[mag_not_C_idxs],
+                f[peak_idxs_mag],
+                mag[peak_idxs_mag],
                 color="orange",
-                marker="*",
+                marker="x",
                 s=s_pick_mag,
-                label=rf"> {prominence_mag}dB in {mag_str}, not > {prominence_C} in {C_xi_M_str}",
+                label=rf" > {prominence_mag}dB in {mag_str}",
             )
-            plot_sticknbase(f, C_xi_M, mag_not_C_idxs, prominence_C, stick_hw, stick_lw, "orange") # Use the C one cuz we wanna see why excluded
+            plot_sticknbase(f, mag, peak_idxs_mag, prominence_mag, stick_hw, stick_lw, "orange")
+            if pp_type == "scipy" and plot_bases:
+                bases_left, bases_right = peak_properties_mag["left_bases"], peak_properties_mag["right_bases"]
+                plt.scatter(f[bases_left], mag[bases_left], color="green", s=s_bases)
+                plt.scatter(f[bases_right], mag[bases_right], color="green", s=s_bases)
 
-        # Set lims and labels
-        plt.ylim(ymin_C, ymax_C)
-        plt.xlim(xmin, xmax)
-        plt.ylabel(f"{mag_str} [dB]", fontsize=12)
-        plt.xlabel("Frequency [Hz]", fontsize=12)
-        plt.title(rf"{C_xi_M_str}", fontsize=12)
-        plt.legend()
-        
+            if plot_diffs:
+                # Mark ones that were in C but not mag
+                plt.scatter(
+                    f[C_not_mag_idxs],
+                    mag[C_not_mag_idxs],
+                    color="b",
+                    marker="*",
+                    s=s_pick_mag,
+                    label=rf"> {prominence_C}dB {C_xi_M_str}, not > {prominence_mag}dB {mag_str}",
+                )
+                plot_sticknbase(f, mag, C_not_mag_idxs, prominence_mag, stick_hw, stick_lw, "b")
+                
+            # Set lims and labels
+            plt.ylim(ymin_mag, ymax_mag)
+            plt.xlim(xmin, xmax)
+            plt.ylabel(f"{mag_str} [dB]", fontsize=12)
+            plt.xlabel("Frequency [Hz]", fontsize=12)
+            plt.legend()
 
-        if plot_C_xi:
-            "Make C_xi plot"
-            # plt.close("all")
-            # plt.figure()
-
-            plt.subplot(3, 1, 3)
-            # Plot spectra
-            plt.plot(f, C_xi_phi, label=rf"$C_\xi^\phi$", color="black", alpha=0.4, lw=2.2)
-            plt.plot(f, C_xi_thresh * np.ones(len(f)), color="green")
+            # C_xi_M
+            plt.subplot(2+p, 1, 2)
+            plt.plot(f, C_xi_M, label=rf"{C_xi_M_str}", color="k", alpha=0.5)
             # Mark Picks
             plt.scatter(
-                f[peak_idxs_mag], C_xi_phi[peak_idxs_mag], color="orange", marker="x", s=s_C_xi_mag, zorder=2
+                f[peak_idxs_C],
+                C_xi_M[peak_idxs_C],
+                color="b",
+                marker="*",
+                s=s_pick_C,
+                label=rf"> {prominence_C}dB in {C_xi_M_str}",
             )
-            plt.scatter(
-                f[peak_idxs_C_unthreshed], C_xi_phi[peak_idxs_C_unthreshed], color="blue", marker="*", s=s_C_xi_C, zorder=1
-            )
-            plt.scatter(
-                f[peak_idxs_C_removed], C_xi_phi[peak_idxs_C_removed], color="red", marker="*", s=s_C_xi_C, zorder=1
-            )
+            plot_sticknbase(f, C_xi_M, peak_idxs_C, prominence_C, stick_hw, stick_lw, "b")
+            if pp_type == "scipy" and plot_bases:
+                bases_left, bases_right = peak_properties_C["left_bases"], peak_properties_C["right_bases"]
+                plt.scatter(f[bases_left], C_xi_M[bases_left], color="green", s=s_bases)
+                plt.scatter(f[bases_right], C_xi_M[bases_right], color="green", s=s_bases)
+            if plot_diffs:
+                # Plot the diffs
+                plt.scatter(
+                    f[mag_not_C_idxs],
+                    C_xi_M[mag_not_C_idxs],
+                    color="orange",
+                    marker="*",
+                    s=s_pick_mag,
+                    label=rf"> {prominence_mag}dB in {mag_str}, not > {prominence_C} in {C_xi_M_str}",
+                )
+                plot_sticknbase(f, C_xi_M, mag_not_C_idxs, prominence_C, stick_hw, stick_lw, "orange") # Use the C one cuz we wanna see why excluded
+            plt.scatter(f[peak_idxs_C_manually_excluded], C_xi_M[peak_idxs_C_manually_excluded], color="red", s=s_pick_C)
             # Set lims and labels
-            plt.ylim(0, 1)
+            plt.ylim(ymin_C, ymax_C)
             plt.xlim(xmin, xmax)
-            plt.ylabel(rf"$C_\xi^\phi$", fontsize=12)
-            plt.xlabel("Frequency [kHz]", fontsize=12)
-            # plt.title(suptitle, fontsize=8, loc="right", color=[0.5, 0.5, 0.5])
+            plt.ylabel(f"{mag_str} [dB]", fontsize=12)
+            plt.xlabel("Frequency [Hz]", fontsize=12)
+            plt.title(rf"{C_xi_M_str}", fontsize=12)
             plt.legend()
-            plt.tight_layout()
-            # if output_plots:
-            #     fig_fp = os.path.join(dirs["pp_human"], subfolder, "pp_C_xi_phi", f"{wf_fn} [{meth_id}].jpg")
-            #     plt.savefig(fig_fp, dpi=500)
+            
 
-        # Wrap it up
-        plt.suptitle(suptitle, fontsize=8, color=[0.5, 0.5, 0.5])
-        plt.tight_layout()
-        if output_plots:
-            fig_fp = os.path.join(dirs["pp_human"], subfolder, f"{wf_fn} [{meth_id}].jpg")
-            plt.savefig(fig_fp, dpi=500)
-        if show_plots:
-            plt.show()
+            if plot_C_xi:
+                "Make C_xi plot"
+                # plt.close("all")
+                # plt.figure()
+
+                plt.subplot(3, 1, 3)
+                # Plot spectra
+                plt.plot(f, C_xi_phi, label=rf"$C_\xi^\phi$", color="black", alpha=0.4, lw=2.2)
+                plt.plot(f, C_xi_thresh * np.ones(len(f)), color="green")
+                # Mark Picks
+                plt.scatter(
+                    f[peak_idxs_mag], C_xi_phi[peak_idxs_mag], color="orange", marker="x", s=s_C_xi_mag, zorder=2
+                )
+                plt.scatter(
+                    f[peak_idxs_C_unthreshed], C_xi_phi[peak_idxs_C_unthreshed], color="blue", marker="*", s=s_C_xi_C, zorder=1
+                )
+                plt.scatter(
+                    f[peak_idxs_C_removed_C_xi_thresh], C_xi_phi[peak_idxs_C_removed_C_xi_thresh], color="red", marker="*", s=s_C_xi_C, zorder=1
+                )
+                # Set lims and labels
+                plt.ylim(0, 1)
+                plt.xlim(xmin, xmax)
+                plt.ylabel(rf"$C_\xi^\phi$", fontsize=12)
+                plt.xlabel("Frequency [kHz]", fontsize=12)
+                # plt.title(suptitle, fontsize=8, loc="right", color=[0.5, 0.5, 0.5])
+                plt.legend()
+                plt.tight_layout()
+                # if output_plots:
+                #     fig_fp = os.path.join(dirs["pp_human"], subfolder, "pp_C_xi_phi", f"{wf_fn} [{meth_id}].jpg")
+                #     plt.savefig(fig_fp, dpi=500)
+
+            # Wrap it up
+            plt.suptitle(suptitle, fontsize=8, color=[0.5, 0.5, 0.5])
+            plt.tight_layout()
+            if output_plots:
+                fig_fp = os.path.join(dirs["pp_human"], subfolder, f"{wf_fn} [{meth_id} - {fig}].jpg")
+                plt.savefig(fig_fp, dpi=500)
+            if show_plots:
+                plt.show()
 
             
         # Add to spreadsheet

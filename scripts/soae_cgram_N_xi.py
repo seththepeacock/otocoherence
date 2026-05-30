@@ -27,7 +27,7 @@ mode = pcg['mode']
 tau_s = pcg['tau_s']
 hop_cgram_s = pcg['hop_cgram_s']
 hop_psd_s = pcg['hop_psd_s']
-nfft = pcg['nfft']
+nfft_cgram_psd = pcg['nfft']
 win_meth_cgram = pcg['win_meth_cgram']
 win_type_psd = pcg['win_type_psd']
 xi_min_s = pcg['xi_min_s']
@@ -37,7 +37,7 @@ T_xi_meth = pcg['T_xi_meth']
 # Significant T_xi extraction
 T_xi_threshs = {"0.025":0.005, "0.05":0.01, "0.1":0.015}
 fmin = 500
-fmax = 15000
+fmax = np.inf
 
 # Plot
 dpi=300
@@ -92,7 +92,7 @@ for xi_max_s in [0.025, 0.05, 0.1]:
             f = cgram["f"]
             T_xis = np.empty(len(f))
             for k in range(len(f)):
-                if T_xi_type == "int":
+                if T_xi_meth == "int":
                     T_xis[k] = get_T_xi_int(cgram["colossogram"][:, k], cgram["xis_s"])
                 else:
                     raise ValueError()
@@ -127,7 +127,7 @@ for xi_max_s in [0.025, 0.05, 0.1]:
                 plt.scatter(f_plot[~sig_mask_plot], T_xis_plot[~sig_mask_plot], s=s_insig, alpha=alpha_insig, color="purple")
                 # plt.hlines(T_xi_thresh, 0, f[-1], color="purple")
                 # plt.vlines([hpf_cf, fmin], np.min(T_xis_plot), np.max(T_xis_plot), color="red", lw=1)
-                plt.ylabel(rf"$T_\xi^{{{T_xi_type}}}$ [{xi_max_s*1000:.0f}ms]", color="purple", fontsize=fsz)
+                plt.ylabel(rf"$T_\xi^{{{T_xi_meth}}}$ [{xi_max_s*1000:.0f}ms]", color="purple", fontsize=fsz)
 
                 plt.title(f"{species} {wf_idx} [{wf_fn}]", fontsize=fsz)
                 plt.tight_layout()
@@ -164,7 +164,7 @@ for xi_max_s in [0.025, 0.05, 0.1]:
                 f0 = f[idx]
                 T_xi0 = T_xis[idx]
                 psd0 = psd[idx]
-                row = {'species':species, 'wf_idx':wf_idx, 'f0':f0, 'mode':mode, 'T_xi':T_xi0, 'PSD':psd0, 'wf_fn':wf_fn, 'T_xi_type':T_xi_type}
+                row = {'species':species, 'wf_idx':wf_idx, 'f0':f0, 'mode':mode, 'T_xi':T_xi0, 'PSD':psd0, 'wf_fn':wf_fn, 'T_xi_meth':T_xi_meth}
                 rows.append(row)
 
     df = pd.DataFrame(rows)

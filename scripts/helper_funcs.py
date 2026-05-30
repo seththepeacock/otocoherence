@@ -25,7 +25,8 @@ def get_cp():
         "yellow":"#DDCC77",
         "salmon":"#CC6677",
         "violet":"#AA4499",
-        "burgundy":"#882255"
+        "burgundy":"#882255",
+        "black":"#000000"
     }
 
 def load_calc_colossogram(
@@ -170,7 +171,7 @@ def get_dirs(root="C:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     for subfolder in ["scripts", "results", "pickles", "data"]:
         dirs[subfolder] = os.path.join(dirs["oto"], subfolder)
     # results subsubdirs
-    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_PSDs", "T_xi_int", "figs", "pp_human"]:
+    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_PSDs", "T_xi_int", "figs", "pp_human", "peakc_picked_peaks"]:
         dirs[results_subfolder] = os.path.join(dirs["results"], results_subfolder)
     for dir in dirs.values():
         os.makedirs(dir, exist_ok=True)
@@ -325,10 +326,7 @@ def get_params_peakc():
     # ---Lorentzian Fitting and Bandpass Filtering---
     crop_bw = 200
     bw_filt_thresh = 0.1
-    print("Note we're using a 50 dB rip on BPF, crank that up to 100!")
     kaiser_rip = 100
-    kaiser_rip = 50
-    
     kaiser_df = 50
 
     bpf_params = {
@@ -389,17 +387,21 @@ def get_params_human_picking():
     # wf_len_s = get_params_peakc()["wf_len_s"]
     wf_len_s = None
     avg_meth = "power"
-    flim = [500, 10000]
+    flim = [500, np.inf]
     # Peak picking params
     wlen_hz = 200 # Hz (Full width)
     prominence_C = 3 #dB
     prominence_mag = 2 #dB
+    C_ignore = {"human_AVGrearSOAEwf2":[16576], "human_JBrearSOAEwf2short":[10590, 16682, 20200], "human_JIrearSOAEwf2short":[20408], "human_LSrearSOAEwf1short":[12950,13710, 16650,18670], "human_RRrearSOAEwf1short":[17800]}
+    manual_thresh = 100
     if hop_C_s != hop_mag_s:
         raise ValueError("You should change your meth_id!")
     meth_id=f"prom_C={prominence_C}, prom_mag={prominence_mag}, hpf_meth={get_filter_str(hpf_meth)}, fs={fs}, tau={tau_s*1000}ms, xi={xi_s*1000}ms, hop_C=hop_mag={hop_mag_s*1000}ms, {pc.get_win_meth_str(win_meth_C)}, win_mag={win_mag}, avg_meth={avg_meth}, flim={flim}, wf_len_s={wf_len_s}"
     return {
         "hpf_meth":hpf_meth,
         "fs":fs,
+        "C_ignore":C_ignore,
+        "manual_thresh":manual_thresh,
         "win_meth_C":win_meth_C,
         "tau_s":tau_s,
         "xi_s":xi_s,
