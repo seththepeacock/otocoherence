@@ -73,7 +73,6 @@ rows_C = []
 
 pp_params_subfolders = [("scipy", "v3", "")]
 # pp_params_subfolders = [("scipy", "v3_mag", "")]
-
 "Start Analysis Loop"
 wf_fns.sort(key=str.lower)
 for pp_type, param_set, subfolder in pp_params_subfolders:

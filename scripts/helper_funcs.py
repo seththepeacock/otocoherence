@@ -392,8 +392,8 @@ def get_params_human_picking():
     wlen_hz = 200 # Hz (Full width)
     prominence_C = 3 #dB
     prominence_mag = 2 #dB
-    C_ignore = {"human_AVGrearSOAEwf2":[16576], "human_JBrearSOAEwf2short":[10590, 16682, 20200], "human_JIrearSOAEwf2short":[20408], "human_LSrearSOAEwf1short":[12950,13710, 16650,18670], "human_RRrearSOAEwf1short":[17800]}
-    manual_thresh = 100
+    C_ignore = {"human_AVGrearSOAEwf2":[4450, 16576], "human_JBrearSOAEwf2short":[1112, 2933, 3853, 4376, 10590, 16682, 20200], "human_FMlearSOAEwfA01":[2127], "human_JIrearSOAEwf2short":[20408], "human_LSrearSOAEwf1short":[645, 1579, 12950,13710, 16650,18670], "human_KClearSOAEwf2":[1105], "human_RRrearSOAEwf1short":[1315, 7895, 17800], "human_TH13RearwaveformSOAEshort":[846, 1030, 1081], "human_TH14RearwaveformSOAEshort":[659, 1116, 1190, 1430]}
+    manual_thresh = 50
     if hop_C_s != hop_mag_s:
         raise ValueError("You should change your meth_id!")
     meth_id=f"prom_C={prominence_C}, prom_mag={prominence_mag}, hpf_meth={get_filter_str(hpf_meth)}, fs={fs}, tau={tau_s*1000}ms, xi={xi_s*1000}ms, hop_C=hop_mag={hop_mag_s*1000}ms, {pc.get_win_meth_str(win_meth_C)}, win_mag={win_mag}, avg_meth={avg_meth}, flim={flim}, wf_len_s={wf_len_s}"
