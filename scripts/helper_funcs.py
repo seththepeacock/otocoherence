@@ -830,11 +830,15 @@ def kaiser_filter(wf, fs, cf=300, df=50, rip=100):
     )
 
     # Apply filtering
+    # filtered_wf = lfilter(
+    #     taps, [1.0], wf
+    # )  # b, the denominator, is 1 for no poles, only zeros = FIR
     # filtered_wf = oaconvolve(wf, taps, mode='full')[0:len(wf)] # Same output as lfilter (within machine precision)
-    filtered_wf = lfilter(
-        taps, [1.0], wf
-    )  # b, the denominator, is 1 for no poles, only zeros = FIR
-
+    
+    # Final choice: mode='same' spreads edge effects evenly to both sides. mode=valid could make sense too, but then output is no longer 60s--it's len(wf)-len(numtaps) so it would change depending on filter params
+    filtered_wf = oaconvolve(wf, taps, mode='same')
+    stop = time.time()
+    print(f"Filtering took {stop-start:.3f}s")
 
     return filtered_wf
 
