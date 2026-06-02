@@ -4,7 +4,7 @@ import scipy as sp
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.signal import find_peaks, hilbert, kaiserord, firwin, lfilter, get_window
+from scipy.signal import oaconvolve, hilbert, kaiserord, firwin, lfilter, get_window
 import os
 import pickle
 from phaseco import *
@@ -830,11 +830,12 @@ def kaiser_filter(wf, fs, cf=300, df=50, rip=100):
     )
 
     # Apply filtering
+    # filtered_wf = oaconvolve(wf, taps, mode='full')[0:len(wf)] # Same output as lfilter (within machine precision)
     filtered_wf = lfilter(
         taps, [1.0], wf
     )  # b, the denominator, is 1 for no poles, only zeros = FIR
-    stop = time.time()
-    print(f"Filtering took {stop-start:.3f}s")
+
+
     return filtered_wf
 
 
