@@ -4,7 +4,7 @@ import scipy as sp
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import pandas as pd
-from scipy.signal import oaconvolve, hilbert, kaiserord, firwin, lfilter, get_window
+from scipy.signal import oaconvolve, hilbert, kaiserord, firwin, lfilter, get_window, fftconvolve
 import os
 import pickle
 from phaseco import *
@@ -14,6 +14,8 @@ import ast
 from scipy.fft import rfft, rfftfreq, irfft
 from tqdm import tqdm
 from collections import defaultdict
+import warnings
+
 
 def get_cp():
     # Paul Tol's "Muted" color palette
@@ -239,7 +241,7 @@ def get_picked_peaks(fp_pp, wf_fn=None, species=None, wf_idx=None):
 
     return picked_peaks
 
-def get_params_cgram():
+def get_params_cgram(verbose=True):
 
     hpf_cf = 300
     hpf_df = 50
@@ -254,7 +256,10 @@ def get_params_cgram():
     }
 
     # Used for both cgram and PSD for consistency
-    tau_s = 0.15 # Gives us a 10 Hz bandwidth with the Hann window
+    
+    # tau_s = 0.15 # Gives us a 10 Hz bandwidth with the Hann window
+    # tau_s = 0.03 # Gives us a 50 Hz bandwidth with the Hann window
+    tau_s = 0.1
 
     # Defining it as a fraction of tau doesn't make sense since "effective" tau changes with xi
     # 10ms is low enough that going lower doesn't change much at all
@@ -270,6 +275,9 @@ def get_params_cgram():
         "rho": 1.0,
         "win_type": "hann"
     }
+
+    if verbose:
+        print(f"Using colossogram tau={tau_s}s with an (asymptotic) {win_meth_cgram['win_type']} window, corresponding to an (asymptotic) bandwidth of {get_hpbw(win_meth_cgram['win_type'], int(round(tau_s*44100)), 44100)} Hz")
 
     # Same for consistency
     win_type_psd = win_meth_cgram["win_type"]
@@ -372,7 +380,7 @@ def get_params_peakc():
     return ppc
 
 def get_params_human_picking():
-    pcg = get_params_cgram()
+    pcg = get_params_cgram(verbose=False)
     hpf_meth = pcg["hpf_meth"]
     fs = 44100
     xi_s = 0.01508
@@ -422,15 +430,18 @@ def get_params_human_picking():
 def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_len_s=None):
     if T_xi_len_s is None:
         T_xi_len_s = ppc['T_xi_len_s']
+
     # Deal with different f0 definitions
     f0_max = f[np.argmin(np.abs(f-f0_max_saved))]
     if np.abs(f0_max-f0_max_saved) > 1e-9:
         raise ValueError(f"Your loaded peak pick {f0_max_saved} does not match the current bin center {f0_max}!")
+    
     # Crop axes
     crop_bw = ppc['crop_bw']
     crop_idxs = [np.argmin(np.abs(f-(f0_max_saved-crop_bw/2))), np.argmin(np.abs(f-(f0_max_saved+crop_bw/2)))+1]
     f_crop = f[crop_idxs[0]:crop_idxs[1]+1]
     psd_crop = psd[crop_idxs[0]:crop_idxs[1]+1]
+
     # Fit Lorentzian
     f0_fit, y0_l, gamma_L, a_L, lorentz_fit = fit_lorentzian(f_crop, psd_crop)
     
@@ -444,7 +455,13 @@ def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_len_s=None):
 
     # Get analytic signal
     wf_filt_h = hilbert(wf_filt)
-    wf_filt_h_phi = wf_filt_h / np.abs(wf_filt_h)
+    wf_filt_h_mag = np.abs(wf_filt_h)
+
+    # Normalize, leaving anywhere that np.abs(wf_filt_h)==0 as 0
+    wf_filt_h_phi = np.zeros_like(wf_filt_h, dtype=wf_filt_h.dtype)
+    mask = wf_filt_h_mag != 0
+    wf_filt_h_phi[mask] = wf_filt_h[mask] / wf_filt_h_mag[mask]
+
     acf_full = correlate(wf_filt_h, wf_filt_h, mode='full', method='auto')
     acf_phi_full = correlate(wf_filt_h_phi, wf_filt_h_phi, mode='full', method='auto')
     
@@ -836,7 +853,8 @@ def kaiser_filter(wf, fs, cf=300, df=50, rip=100):
     # filtered_wf = oaconvolve(wf, taps, mode='full')[0:len(wf)] # Same output as lfilter (within machine precision)
     
     # Final choice: mode='same' spreads edge effects evenly to both sides. mode=valid could make sense too, but then output is no longer 60s--it's len(wf)-len(numtaps) so it would change depending on filter params
-    filtered_wf = oaconvolve(wf, taps, mode='same')
+    filtered_wf = oaconvolve(wf, taps, mode='same') # This sometimes gives a runtime warning, not sure why
+
     stop = time.time()
     print(f"Filtering took {stop-start:.3f}s")
 
@@ -894,7 +912,7 @@ def get_filter_str(filter_meth):
 
 def get_hpbw(win_type, tau, fs, nfft=None):
     if nfft is None:
-        nfft = tau * 8
+        nfft = tau * 16
     win = get_window(win_type, tau)
     win_psd = np.abs(rfft(win, nfft)) ** 2
     target = win_psd[0] / 2
@@ -1016,7 +1034,7 @@ def get_T_xi_eta(acf, lags_s, eta=0.5, sig_thresh=0.1, max_lag_s=None):
     T_xi = lags_s[T_xi_idx]
     return T_xi
 
-def get_T_xi_int(acf, lags_s):
+def get_T_xi_int(acf, lags_s, T_xi_len_s=None):
     delta_x = lags_s[1]-lags_s[0]
     # Check lags_s makes sense
     if np.any(lags_s < 0) or np.any(lags_s[1:])==0:
@@ -1024,10 +1042,18 @@ def get_T_xi_int(acf, lags_s):
     if np.abs((lags_s[-1]-lags_s[-2])-delta_x) > 1e-4:
         print(lags_s)
         raise ValueError("lags_s has inconsistent steps!")
+
+    # See if we want to restrict the ACF range
+    if T_xi_len_s is not None:
+        if T_xi_len_s > lags_s[-1]:
+            raise ValueError("T_xi_len_s can't be longer than the longer xi_max_s!")
+
+        max_idx = np.argmin(np.abs(lags_s-T_xi_len_s))
+        acf = acf[0:max_idx+1] # Include the max lag
+    # Otherwise we assume we want to integrate the provided ACF
+    
     T_xi = np.sum(acf)*delta_x
     return T_xi
-
-
 
 def fit_exp(x, acf):
     # --- Initial guesses ---

@@ -15,8 +15,8 @@ os.chdir(dirs["oto"])
 
 # ---WF---
 speciess = ["Owl", "Anole", "Tokay", "Human"]
-wf_idxs = range(4)
-# speciess = ["Owl"]
+wf_idxs = np.arange(4)
+# speciess = ["Anole"]
 # wf_idxs = [0]
 
 # ---CGRAM---
@@ -50,16 +50,21 @@ fsz = 16
 flims = {'Anole':[1, 6], 'Human':[1, 10], 'Owl':[1, 12], 'Tokay':[1, 6]}
 plot_xi_max_ss = {'Anole':50, 'Owl':50, 'Tokay':50, 'Human':200}
 
-for xi_max_s in [0.025, 0.05, 0.1]:
+T_xi_len_ss = [0.025, 0.05, 0.1]
+xi_max_s = 0.1
+
+for T_xi_len_s in T_xi_len_ss:
+    if T_xi_len_s > xi_max_s:
+        raise ValueError("T_xi_len_s can't be longer than xi_max_s!")
     rows = []
-    T_xi_thresh = T_xi_threshs[str(xi_max_s)]
-    cgram_id = f"{xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1e3:.1f}ms, {pc.get_win_meth_str(win_meth_cgram)}, {get_filter_str(hpf_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_cgram_s*1000:.0f}ms, hop_psd={hop_psd_s*1000:.0f}ms, nfft={nfft_cgram_psd}"
-    T_xi_id = f"{T_xi_meth} {cgram_id}"
     for wf_idx in wf_idxs: 
         for species in speciess:
             print(f"{species} {wf_idx}")
+
             # Get wf
             wf, wf_fn, fs = get_wf(species=species, wf_idx=wf_idx)
+            wf_filt = filter_wf_cgram(wf, fs, hpf_meth) # Filter
+
             # convert
             tau_cgram_psd = int(round(tau_s*fs))
             hop_cgram = int(round(hop_cgram_s*fs))
@@ -88,12 +93,16 @@ for xi_max_s in [0.025, 0.05, 0.1]:
                 }
             )
 
+            T_xi_thresh = T_xi_threshs[str(T_xi_len_s)]
+            cgram_id = f"{T_xi_len_s*1000:.0f}ms, delta_xi={xi_min_s*1e3:.1f}ms, {pc.get_win_meth_str(win_meth_cgram)}, {get_filter_str(hpf_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_cgram_s*1000:.0f}ms, hop_psd={hop_psd_s*1000:.0f}ms, nfft={nfft_cgram_psd}"
+            T_xi_id = f"{T_xi_meth} {cgram_id}"
+
             # Construct T_xi spectrum
             f = cgram["f"]
             T_xis = np.empty(len(f))
             for k in range(len(f)):
                 if T_xi_meth == "int":
-                    T_xis[k] = get_T_xi_int(cgram["colossogram"][:, k], cgram["xis_s"])
+                    T_xis[k] = get_T_xi_int(cgram["colossogram"][:, k], cgram["xis_s"], T_xi_len_s=T_xi_len_s)
                 else:
                     raise ValueError()
                 
@@ -113,7 +122,6 @@ for xi_max_s in [0.025, 0.05, 0.1]:
                 T_xis_plot = T_xis[fmin_idx_plot:fmax_idx_plot]
 
                 # Plot PSD 
-                wf_filt = filter_wf_cgram(wf, fs, hpf_meth)
                 psd = pc.get_welch(wf=wf_filt, fs=fs, win=win_type_psd, tau=tau_cgram_psd, nfft=nfft_cgram_psd, hop=hop_psd)[1]
                 psd_plot = psd[fmin_idx_plot:fmax_idx_plot]
                 psd_db_plot = 10*np.log10(psd_plot) 
@@ -127,7 +135,7 @@ for xi_max_s in [0.025, 0.05, 0.1]:
                 plt.scatter(f_plot[~sig_mask_plot], T_xis_plot[~sig_mask_plot], s=s_insig, alpha=alpha_insig, color="purple")
                 # plt.hlines(T_xi_thresh, 0, f[-1], color="purple")
                 # plt.vlines([hpf_cf, fmin], np.min(T_xis_plot), np.max(T_xis_plot), color="red", lw=1)
-                plt.ylabel(rf"$T_\xi^{{{T_xi_meth}}}$ [{xi_max_s*1000:.0f}ms]", color="purple", fontsize=fsz)
+                plt.ylabel(rf"$T_\xi^{{{T_xi_meth}}}$ [{T_xi_len_s*1000:.0f}ms]", color="purple", fontsize=fsz)
 
                 plt.title(f"{species} {wf_idx} [{wf_fn}]", fontsize=fsz)
                 plt.tight_layout()
@@ -147,13 +155,16 @@ for xi_max_s in [0.025, 0.05, 0.1]:
                 plt.tight_layout()
                 fn_T_xi_psd = f"{species} {wf_idx} T_xi_PSD [{T_xi_id}].jpg"
                 plt.savefig(os.path.join(dirs["T_xi_PSDs"], fn_T_xi_psd), dpi=dpi)
-    
+
                 
 
 
                 # Plot Cgram
                 plt.close('all')
                 pc.plot_colossogram(cgram)
+                xmin, _ = plt.xlim()
+                xmax = T_xi_len_s * 1000
+                plt.xlim(xmin, xmax)
                 plt.ylim(flims[species])
                 fn_cgram = f"{species} {wf_idx} Colossogram [{cgram_id}].jpg"
                 plt.savefig(os.path.join(dirs["cgrams"], fn_cgram), dpi=dpi)
