@@ -158,7 +158,7 @@ for k_f_d, f_d in enumerate(f_ds):
                 xmax_ms = np.max([T_xi, T_xi_phi])*2*1000
                 N_xi = T_xi * f_d
                 N_xi_phi = T_xi_phi * f_d
-                row = {'Q':q, 'CF':f_d, 'f0_fit':fab['f0_fit'], 'mode':'P', 'N_xi':N_xi, 'T_xi':T_xi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f_d, 'f0_max_round':f_d, 'T_xi_type':ppc["T_xi_meth"]}
+                row = {'Q':q, 'CF':f_d, 'f0_fit':fab['f0_fit'], 'mode':'W', 'N_xi':N_xi, 'T_xi':T_xi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f_d, 'f0_max_round':f_d, 'T_xi_type':ppc["T_xi_meth"]}
                 row_phi = {'Q':q, 'CF':f_d, 'f0_fit':fab['f0_fit'], 'mode':'phi', 'N_xi':N_xi_phi, 'T_xi':T_xi_phi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f_d, 'f0_max_round':f_d, 'T_xi_type':ppc["T_xi_meth"]}
                 for r in [row, row_phi]:
                     r['NDDHO Params'] = nddho_wf_id

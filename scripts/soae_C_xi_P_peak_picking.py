@@ -22,10 +22,10 @@ stick_lw = 1
 stick_hw = 25 # Hz
 fpad = 100 
 ypad = 3
-s_pick_mag = 10
+s_pick_PSD = 10
 s_pick_C = 10
 s_bases = 5
-s_C_xi_mag = 7
+s_C_xi_PSD = 7
 s_C_xi_C = 20
 
 # Choose parameter set
@@ -39,7 +39,7 @@ php = get_params_human_picking()
 # SciPy Peak Picking paramters
 wlen_hz = php["wlen_hz"]
 prominence_C = php["prominence_C"]
-prominence_mag = php["prominence_mag"]
+prominence_PSD = php["prominence_psd"]
 
 
         
@@ -68,11 +68,11 @@ def plot_sticknbase(f, y, idxs, thresh_db, stick_hw, stick_lw, color):
     )
 
 # Initialize Spreadsheet
-rows_mag = []
+rows_PSD = []
 rows_C = []
 
 pp_params_subfolders = [("scipy", "v3", "")]
-# pp_params_subfolders = [("scipy", "v3_mag", "")]
+# pp_params_subfolders = [("scipy", "v3_PSD", "")]
 "Start Analysis Loop"
 wf_fns.sort(key=str.lower)
 for pp_type, param_set, subfolder in pp_params_subfolders:
@@ -88,8 +88,8 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 xi = int(round(php["xi_s"] * fs))
                 hop_C = int(round(php["hop_C_s"] * fs))
                 win_meth_C = php["win_meth_C"]
-                hop_mag = int(round(php["hop_mag_s"] * fs))
-                win_mag = php["win_mag"]
+                hop_PSD = int(round(php["hop_psd_s"] * fs))
+                win_PSD = php["win_psd"]
                 flim = php["flim"]
             case "v3_mag":
                 avg_meth = "mag"
@@ -100,8 +100,8 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 xi = int(round(php["xi_s"] * fs))
                 hop_C = int(round(php["hop_C_s"] * fs))
                 win_meth_C = php["win_meth_C"]
-                hop_mag = int(round(php["hop_mag_s"] * fs))
-                win_mag = php["win_mag"]
+                hop_PSD = int(round(php["hop_psd_s"] * fs))
+                win_PSD = php["win_psd"]
                 flim = php["flim"]
             case "biorxiv": # Used for bioRxiv preprint
                 # Filtering parameters
@@ -111,14 +111,13 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 hop_C = 441
                 win_meth_C = {"method": "rho", "rho": 1.0, "win_type": "boxcar"}
                 # Pure magnitude parameters
-                hop_mag = hop_C
-                win_mag = "hann"
+                hop_PSD = hop_C
+                win_PSD = "hann"
                 fs = 44100
                 tau = 3072
                 xi = 665
                 flim = [0, 22499]
                 avg_meth="mag"
-
             case _:
                 raise ValueError(f"param_set={param_set} hasn't been defined! (Check commented out section at end?)")
 
@@ -152,7 +151,7 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
 
         suptitle = rf"{wf_fn}: $\tau={1000*tau/fs:.2f}$ms & $\xi=${1000*xi/fs:.2f}ms [{pp_type} peak-picking, {param_set}]"
         if avg_meth == "mag":
-            f, C_xi_M = pc.get_autocoherence(
+            f, C_xi_P = pc.get_autocoherence(
                 wf,
                 fs,
                 xi,
@@ -163,12 +162,12 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 mode="M",
                 ref_type="time",
             )
-            mag = pc.get_welch(wf, fs, tau, nfft=tau, hop=hop_mag, win=win_mag, avg_exp=1)[1]
+            mag = pc.get_welch(wf, fs, tau, nfft=tau, hop=hop_PSD, win=win_PSD, avg_exp=1)[1]
             # Convert to db (both 20 because never using squares of any kind)
-            C_xi_M = 20 * np.log10(C_xi_M) 
+            C_xi_P = 20 * np.log10(C_xi_P) 
             mag = 20 * np.log10(mag) 
         elif avg_meth == "power":
-            f, C_xi_M = pc.get_autocoherence(
+            f, C_xi_P = pc.get_autocoherence(
                 wf,
                 fs,
                 xi,
@@ -176,13 +175,13 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 hop=hop_C,
                 nfft=tau,
                 win_meth=win_meth_C,
-                mode="P2",
+                mode="P",
                 ref_type="time",
-            ) # P2 (and P) take the sqrt at the end
-            mag = pc.get_welch(wf, fs, tau, nfft=tau, hop=hop_mag, win=win_mag, avg_exp=2, scaling="density")[1] 
+            ) 
+            psd = pc.get_welch(wf, fs, tau, nfft=tau, hop=hop_PSD, win=win_PSD, avg_exp=2, scaling="density")[1] 
             # Convert to db
-            C_xi_M = 20 * np.log10(C_xi_M) # still 20 because C_xi_P2 takes sqrt at the end for comparison with C_xi_phi
-            mag = 10 * np.log10(mag) # 10 because scaling = density (no sqrt taken)
+            C_xi_P = 10 * np.log10(C_xi_P) #
+            psd = 10 * np.log10(psd) # 10 because scaling = density (no sqrt taken)
 
         bin_width = f[1] - f[0]
 
@@ -203,24 +202,24 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
         if pp_type == "manual":
             if param_set not in ["biorxiv", "biorxivflim"]:
                 raise ValueError("We didn't do manual peak-picking for this param set!")
-            mag_freqs, C_freqs = get_human_peak_freqs_manual(wf_fn, khz=False)
-            peak_idxs_mag = np.argmin((np.abs(f[None, :] - mag_freqs[:, None])), axis=1)
+            psd_freqs, C_freqs = get_human_peak_freqs_manual(wf_fn, khz=False)
+            peak_idxs_PSD = np.argmin((np.abs(f[None, :] - psd_freqs[:, None])), axis=1)
             peak_idxs_C = np.argmin((np.abs(f[None, :] - C_freqs[:, None])), axis=1)
         elif pp_type == "scipy":
             
             # Conversion
             wlen = int(round(wlen_hz)/bin_width)
-            peak_idxs_mag, peak_properties_mag = find_peaks(mag, prominence=prominence_mag, wlen=wlen)
-            peak_idxs_C, peak_properties_C = find_peaks(C_xi_M, prominence=prominence_C, wlen=wlen)
+            peak_idxs_PSD, peak_properties_PSD = find_peaks(psd, prominence=prominence_PSD, wlen=wlen)
+            peak_idxs_C, peak_properties_C = find_peaks(C_xi_P, prominence=prominence_C, wlen=wlen)
         else:
             raise ValueError(f"picking_type={pp_type} is not supported!")
 
         # Remove everything out of range
         fmin, fmax = flim
         keep_mask_C = (f[peak_idxs_C] >= fmin) & (f[peak_idxs_C] <= fmax)
-        keep_mask_mag = ((f[peak_idxs_mag] >= fmin) & (f[peak_idxs_mag] <= fmax))
+        keep_mask_PSD = ((f[peak_idxs_PSD] >= fmin) & (f[peak_idxs_PSD] <= fmax))
         peak_idxs_C = peak_idxs_C[keep_mask_C]
-        peak_idxs_mag = peak_idxs_mag[keep_mask_mag]
+        peak_idxs_PSD = peak_idxs_PSD[keep_mask_PSD]
 
 
         # Deal with C_xi thresh requirement
@@ -247,11 +246,11 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
 
 
         # Get diffs 
-        mag_not_C_idxs = np.setdiff1d(peak_idxs_mag, peak_idxs_C)
-        C_not_mag_idxs = np.setdiff1d(peak_idxs_C, peak_idxs_mag)
+        psd_not_C_idxs = np.setdiff1d(peak_idxs_PSD, peak_idxs_C)
+        C_not_PSD_idxs = np.setdiff1d(peak_idxs_C, peak_idxs_PSD)
 
         # # Switch xmax to be the maximum one that actually exists
-        # xmax = f[np.max(np.concat([peak_idxs_C_unthreshed, peak_idxs_mag]))] + fpad
+        # xmax = f[np.max(np.concat([peak_idxs_C_unthreshed, peak_idxs_PSD]))] + fpad
 
         "Start Plot"
         os.makedirs(os.path.join(dirs["pp_human"], subfolder), exist_ok=True)
@@ -265,95 +264,95 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
             
             # Shift spectra so minimum within the main range is 0 dB
             xmin_idx, xmax_idx = np.argmin(np.abs(f-xmin)), np.argmin(np.abs(f-xmax))
-            C_xi_M = C_xi_M - np.min(C_xi_M[xmin_idx:xmax_idx+1])
-            mag = mag - np.min(mag[xmin_idx:xmax_idx+1])
-            ymin_mag = np.min([-2, np.min(C_xi_M[xmin_idx:xmax_idx+1]-1), np.min(mag[xmin_idx:xmax_idx+1]-1)])
-            ymax_mag = np.max([75, np.max(C_xi_M[xmin_idx:xmax_idx+1]+5), np.max(mag[xmin_idx:xmax_idx+1]+5)])
-            ymin_C, ymax_C = ymin_mag, ymax_mag
+            C_xi_P = C_xi_P - np.min(C_xi_P[xmin_idx:xmax_idx+1])
+            psd = psd - np.min(psd[xmin_idx:xmax_idx+1])
+            ymin_PSD = np.min([-2, np.min(C_xi_P[xmin_idx:xmax_idx+1]-1), np.min(psd[xmin_idx:xmax_idx+1]-1)])
+            ymax_PSD = np.max([75, np.max(C_xi_P[xmin_idx:xmax_idx+1]+5), np.max(psd[xmin_idx:xmax_idx+1]+5)])
+            ymin_C, ymax_C = ymin_PSD, ymax_PSD
 
             plt.figure(fig, figsize=(11, 6))
             if avg_meth == "mag":
-                C_xi_M_str = rf"$C_\xi^M$" 
+                C_xi_P_str = rf"$C_\xi^M$" 
                 mag_str = r"AMag"
             elif avg_meth == "power":
-                C_xi_M_str = rf"$C_\xi^P$"
-                mag_str = r"PSD"
+                C_xi_P_str = rf"$C_\xi^P$"
+                psd_str = r"PSD"
             else:
                 raise ValueError(f"Invalid avg_meth={avg_meth}!")
 
-            # Magnitudes
+            # psdnitudes
             p = 1 if plot_C_xi else 0 
             plt.subplot(2+p, 1, 1)
-            plt.plot(f, mag, label=mag_str, color="k", alpha=0.5)
+            plt.plot(f, psd, label=psd_str, color="k", alpha=0.5)
             # Mark picks
             plt.scatter(
-                f[peak_idxs_mag],
-                mag[peak_idxs_mag],
+                f[peak_idxs_PSD],
+                psd[peak_idxs_PSD],
                 color="orange",
                 marker="x",
-                s=s_pick_mag,
-                label=rf" > {prominence_mag}dB in {mag_str}",
+                s=s_pick_PSD,
+                label=rf" > {prominence_PSD}dB in {psd_str}",
             )
-            plot_sticknbase(f, mag, peak_idxs_mag, prominence_mag, stick_hw, stick_lw, "orange")
+            plot_sticknbase(f, psd, peak_idxs_PSD, prominence_PSD, stick_hw, stick_lw, "orange")
             if pp_type == "scipy" and plot_bases:
-                bases_left, bases_right = peak_properties_mag["left_bases"], peak_properties_mag["right_bases"]
-                plt.scatter(f[bases_left], mag[bases_left], color="green", s=s_bases)
-                plt.scatter(f[bases_right], mag[bases_right], color="green", s=s_bases)
+                bases_left, bases_right = peak_properties_PSD["left_bases"], peak_properties_PSD["right_bases"]
+                plt.scatter(f[bases_left], psd[bases_left], color="green", s=s_bases)
+                plt.scatter(f[bases_right], psd[bases_right], color="green", s=s_bases)
 
             if plot_diffs:
-                # Mark ones that were in C but not mag
+                # Mark ones that were in C but not psd
                 plt.scatter(
-                    f[C_not_mag_idxs],
-                    mag[C_not_mag_idxs],
+                    f[C_not_PSD_idxs],
+                    psd[C_not_PSD_idxs],
                     color="b",
                     marker="*",
-                    s=s_pick_mag,
-                    label=rf"> {prominence_C}dB {C_xi_M_str}, not > {prominence_mag}dB {mag_str}",
+                    s=s_pick_PSD,
+                    label=rf"> {prominence_C}dB {C_xi_P_str}, not > {prominence_PSD}dB {psd_str}",
                 )
-                plot_sticknbase(f, mag, C_not_mag_idxs, prominence_mag, stick_hw, stick_lw, "b")
+                plot_sticknbase(f, psd, C_not_PSD_idxs, prominence_PSD, stick_hw, stick_lw, "b")
                 
             # Set lims and labels
-            plt.ylim(ymin_mag, ymax_mag)
+            plt.ylim(ymin_PSD, ymax_PSD)
             plt.xlim(xmin, xmax)
-            plt.ylabel(f"{mag_str} [dB]", fontsize=12)
+            plt.ylabel(f"{psd_str} [dB]", fontsize=12)
             plt.xlabel("Frequency [Hz]", fontsize=12)
             plt.legend()
 
-            # C_xi_M
+            # C_xi_P
             plt.subplot(2+p, 1, 2)
-            plt.plot(f, C_xi_M, label=rf"{C_xi_M_str}", color="k", alpha=0.5)
+            plt.plot(f, C_xi_P, label=rf"{C_xi_P_str}", color="k", alpha=0.5)
             # Mark Picks
             plt.scatter(
                 f[peak_idxs_C],
-                C_xi_M[peak_idxs_C],
+                C_xi_P[peak_idxs_C],
                 color="b",
                 marker="*",
                 s=s_pick_C,
-                label=rf"> {prominence_C}dB in {C_xi_M_str}",
+                label=rf"> {prominence_C}dB in {C_xi_P_str}",
             )
-            plot_sticknbase(f, C_xi_M, peak_idxs_C, prominence_C, stick_hw, stick_lw, "b")
+            plot_sticknbase(f, C_xi_P, peak_idxs_C, prominence_C, stick_hw, stick_lw, "b")
             if pp_type == "scipy" and plot_bases:
                 bases_left, bases_right = peak_properties_C["left_bases"], peak_properties_C["right_bases"]
-                plt.scatter(f[bases_left], C_xi_M[bases_left], color="green", s=s_bases)
-                plt.scatter(f[bases_right], C_xi_M[bases_right], color="green", s=s_bases)
+                plt.scatter(f[bases_left], C_xi_P[bases_left], color="green", s=s_bases)
+                plt.scatter(f[bases_right], C_xi_P[bases_right], color="green", s=s_bases)
             if plot_diffs:
                 # Plot the diffs
                 plt.scatter(
-                    f[mag_not_C_idxs],
-                    C_xi_M[mag_not_C_idxs],
+                    f[psd_not_C_idxs],
+                    C_xi_P[psd_not_C_idxs],
                     color="orange",
                     marker="*",
-                    s=s_pick_mag,
-                    label=rf"> {prominence_mag}dB in {mag_str}, not > {prominence_C} in {C_xi_M_str}",
+                    s=s_pick_PSD,
+                    label=rf"> {prominence_PSD}dB in {psd_str}, not > {prominence_C} in {C_xi_P_str}",
                 )
-                plot_sticknbase(f, C_xi_M, mag_not_C_idxs, prominence_C, stick_hw, stick_lw, "orange") # Use the C one cuz we wanna see why excluded
-            plt.scatter(f[peak_idxs_C_manually_excluded], C_xi_M[peak_idxs_C_manually_excluded], color="red", s=s_pick_C)
+                plot_sticknbase(f, C_xi_P, psd_not_C_idxs, prominence_C, stick_hw, stick_lw, "orange") # Use the C one cuz we wanna see why excluded
+            plt.scatter(f[peak_idxs_C_manually_excluded], C_xi_P[peak_idxs_C_manually_excluded], color="red", s=s_pick_C)
             # Set lims and labels
             plt.ylim(ymin_C, ymax_C)
             plt.xlim(xmin, xmax)
-            plt.ylabel(f"{mag_str} [dB]", fontsize=12)
+            plt.ylabel(f"{psd_str} [dB]", fontsize=12)
             plt.xlabel("Frequency [Hz]", fontsize=12)
-            plt.title(rf"{C_xi_M_str}", fontsize=12)
+            plt.title(rf"{C_xi_P_str}", fontsize=12)
             plt.legend()
             
 
@@ -368,7 +367,7 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 plt.plot(f, C_xi_thresh * np.ones(len(f)), color="green")
                 # Mark Picks
                 plt.scatter(
-                    f[peak_idxs_mag], C_xi_phi[peak_idxs_mag], color="orange", marker="x", s=s_C_xi_mag, zorder=2
+                    f[peak_idxs_PSD], C_xi_phi[peak_idxs_PSD], color="orange", marker="x", s=s_C_xi_PSD, zorder=2
                 )
                 plt.scatter(
                     f[peak_idxs_C_unthreshed], C_xi_phi[peak_idxs_C_unthreshed], color="blue", marker="*", s=s_C_xi_C, zorder=1
@@ -399,22 +398,22 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
 
             
         # Add to spreadsheet
-        for mag_freq_idx in peak_idxs_mag:
-            rows_mag.append({wf_fn:f[mag_freq_idx]})
+        for psd_freq_idx in peak_idxs_PSD:
+            rows_PSD.append({wf_fn:f[psd_freq_idx]})
         for C_freq_idx in peak_idxs_C:
             rows_C.append({wf_fn:f[C_freq_idx]})
 
     # Wrap up spreadsheet
     if output_spreadsheet:
-        df_mag = pd.DataFrame(rows_mag)
+        df_PSD = pd.DataFrame(rows_PSD)
         df_C = pd.DataFrame(rows_C)
 
         # Write to Excel with multiple sheets
         spreadsheet_fn = f"Additional Human Picked Peaks [{meth_id}].xlsx"
         ss_path = os.path.join(dirs["pp_human"], subfolder, spreadsheet_fn)
         with pd.ExcelWriter(ss_path, engine='openpyxl') as writer:
-            df_mag.to_excel(writer, index=False, sheet_name="mag")
-            df_C.to_excel(writer, index=False, sheet_name="C_xi_M")
+            df_PSD.to_excel(writer, index=False, sheet_name="PSD")
+            df_C.to_excel(writer, index=False, sheet_name="C_xi_P")
 
         print(f"Saved Excel file as: {ss_path}")
 
@@ -422,6 +421,8 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
 
 
 # CRF
+
+
 # case "biorxivflim": # Used for bioRxiv preprint except more strict flims
 #     # Filtering parameters
 #     hpf = None
@@ -430,8 +431,8 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
 #     hop_C = 441
 #     win_meth_C = {"method": "rho", "rho": 1.0, "win_type": "boxcar"}
 #     # Pure magnitude parameters
-#     hop_mag = hop_C
-#     win_mag = "hann"
+#     hop_PSD = hop_C
+#     win_PSD = "hann"
 #     fs = 44100
 #     tau = 3072
 #     xi = 665
@@ -446,8 +447,8 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
 #     hop_C = 665
 #     win_meth_C = {"method": "rho", "rho": 1.0, "win_type": "boxcar"}
 #     # Pure magnitude parameters
-#     hop_mag = 3072
-#     win_mag = "hann"
+#     hop_PSD = 3072
+#     win_PSD = "hann"
 #     fs = 44100
 #     tau = 3072
 #     xi = 665
@@ -463,10 +464,12 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
 #     hop_C = 441
 #     win_meth_C = {"method": "rho", "rho": 1.0, "win_type": "boxcar"}
 #     # Pure magnitude parameters
-#     hop_mag = 441
-#     win_mag = "hann"
+#     hop_PSD = 441
+#     win_PSD = "hann"
 #     fs = 44100
 #     tau = 3072
 #     xi = 665
 #     flim = [0, 22499]
 #     avg_meth="mag"
+
+

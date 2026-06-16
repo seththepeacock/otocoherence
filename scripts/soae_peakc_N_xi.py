@@ -164,7 +164,7 @@ for T_xi_len_s in [0.5, 0.025, 0.1]:
                         plt.ylabel(r"$C_\xi$")
                         plt.legend()
                     xmax_ms = (lags_crop_ms[-1])*2
-                    row = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'P', 'T_xi':T_xi, 'A_xi':A_xi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
+                    row = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'W', 'T_xi':T_xi, 'A_xi':A_xi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
                     row_phi = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'phi', 'T_xi':T_xi_phi, 'A_xi':A_xi_phi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
                     T_xi_id = f"exp_fit_bounds=({ppc['acf_exp_fit_min']}, {ppc['acf_exp_fit_max']}), max_lag={T_xi_len_s}s"
                 elif T_xi_meth == "eta":
@@ -185,7 +185,7 @@ for T_xi_len_s in [0.5, 0.025, 0.1]:
                     # else:
                     #     xmax_ms = 0.5*1000
                     xmax_ms = np.max([T_xi, T_xi_phi])*2*1000
-                    row = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'P', 'T_xi':T_xi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
+                    row = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'W', 'T_xi':T_xi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
                     row_phi = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'phi', 'T_xi':T_xi_phi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
                     T_xi_id = f"eta={ppc['eta']}, sig_thresh={ppc['sig_thresh_eta']}, max_lag={ppc['T_xi_len_s']}s"
                 elif T_xi_meth == "int":
@@ -201,7 +201,7 @@ for T_xi_len_s in [0.5, 0.025, 0.1]:
                         plt.ylabel(r"$C_\xi$")
                         plt.legend()
                     xmax_ms = np.max([T_xi, T_xi_phi])*2*1000
-                    row = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'P', 'T_xi':T_xi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
+                    row = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'W', 'T_xi':T_xi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
                     row_phi = {'species':species, 'wf_idx':wf_idx, 'f0_fit':fab['f0_fit'], 'mode':'phi', 'T_xi':T_xi_phi, 'gamma_L':fab['gamma_L'], 'a_L':fab['a_L'], 'wf_fn':wf_fn, 'f0_max':f0_max_saved, 'f0_max_round':f0_max_round, 'T_xi_type':T_xi_meth}
                     T_xi_id = f"int {T_xi_len_s*1000:.0f}ms"
                 else:

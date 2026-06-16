@@ -388,23 +388,23 @@ def get_params_human_picking():
     # tau = round(int(tau_s * fs)) # 3072
     # xi = round(int(xi_s * fs)) # 665   
     hop_C_s = pcg["hop_cgram_s"]
-    hop_mag_s = hop_C_s
+    hop_psd_s = hop_C_s
     win_C = "hann"
     win_meth_C = {"method": "rho", "rho": 1.0, "win_type": win_C}
-    win_mag = win_C
+    win_psd = win_C
     # wf_len_s = get_params_peakc()["wf_len_s"]
     wf_len_s = None
     avg_meth = "power"
     flim = [500, np.inf]
     # Peak picking params
     wlen_hz = 200 # Hz (Full width)
-    prominence_C = 3 #dB
-    prominence_mag = 2 #dB
+    prominence_C = 2 #dB
+    prominence_psd = 2 #dB
     C_ignore = {"human_AVGrearSOAEwf2":[4450, 16576], "human_JBrearSOAEwf2short":[1112, 2933, 3853, 4376, 10590, 16682, 20200], "human_FMlearSOAEwfA01":[2127], "human_JIrearSOAEwf2short":[20408], "human_LSrearSOAEwf1short":[645, 1579, 12950,13710, 16650,18670], "human_KClearSOAEwf2":[1105], "human_RRrearSOAEwf1short":[1315, 7895, 17800], "human_TH13RearwaveformSOAEshort":[846, 1030, 1081], "human_TH14RearwaveformSOAEshort":[659, 1116, 1190, 1430]}
     manual_thresh = 50
-    if hop_C_s != hop_mag_s:
+    if hop_C_s != hop_psd_s:
         raise ValueError("You should change your meth_id!")
-    meth_id=f"prom_C={prominence_C}, prom_mag={prominence_mag}, hpf_meth={get_filter_str(hpf_meth)}, fs={fs}, tau={tau_s*1000}ms, xi={xi_s*1000}ms, hop_C=hop_mag={hop_mag_s*1000}ms, {pc.get_win_meth_str(win_meth_C)}, win_mag={win_mag}, avg_meth={avg_meth}, flim={flim}, wf_len_s={wf_len_s}"
+    meth_id=f"prom_C={prominence_C}, prom_psd={prominence_psd}, hpf_meth={get_filter_str(hpf_meth)}, fs={fs}, tau={tau_s*1000}ms, xi={xi_s*1000}ms, hop_C=hop_psd={hop_psd_s*1000}ms, {pc.get_win_meth_str(win_meth_C)}, win_psd={win_psd}, avg_meth={avg_meth}, flim={flim}, wf_len_s={wf_len_s}"
     return {
         "hpf_meth":hpf_meth,
         "fs":fs,
@@ -414,15 +414,15 @@ def get_params_human_picking():
         "tau_s":tau_s,
         "xi_s":xi_s,
         "hop_C_s":hop_C_s,
-        "hop_mag_s":hop_mag_s,
+        "hop_psd_s":hop_psd_s,
         "win_C":win_C,
-        "win_mag":win_mag,
+        "win_psd":win_psd,
         "wf_len_s":wf_len_s,
         "avg_meth":avg_meth,
         "flim":flim,
         "meth_id":meth_id,
         "prominence_C":prominence_C,
-        "prominence_mag":prominence_mag,
+        "prominence_psd":prominence_psd,
         "wlen_hz":wlen_hz
     }
 
@@ -455,12 +455,12 @@ def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_len_s=None):
 
     # Get analytic signal
     wf_filt_h = hilbert(wf_filt)
-    wf_filt_h_mag = np.abs(wf_filt_h)
+    wf_filt_h_psd = np.abs(wf_filt_h)
 
     # Normalize, leaving anywhere that np.abs(wf_filt_h)==0 as 0
     wf_filt_h_phi = np.zeros_like(wf_filt_h, dtype=wf_filt_h.dtype)
-    mask = wf_filt_h_mag != 0
-    wf_filt_h_phi[mask] = wf_filt_h[mask] / wf_filt_h_mag[mask]
+    mask = wf_filt_h_psd != 0
+    wf_filt_h_phi[mask] = wf_filt_h[mask] / wf_filt_h_psd[mask]
 
     acf_full = correlate(wf_filt_h, wf_filt_h, mode='full', method='auto')
     acf_phi_full = correlate(wf_filt_h_phi, wf_filt_h_phi, mode='full', method='auto')
@@ -1224,7 +1224,7 @@ def get_human_fns():
 def get_human_peak_freqs_manual(wf_fn, khz=True):
     match wf_fn:
         case "human_TH14RearwaveformSOAEshort":
-            mag_freqs = [0.6, 0.86, 0.93, 1.26, 1.62, 2.26, 2.83, 4.38]
+            psd_freqs = [0.6, 0.86, 0.93, 1.26, 1.62, 2.26, 2.83, 4.38]
             C_freqs = [
                 0.603,
                 0.861,
@@ -1246,7 +1246,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 6.318,
             ]
         case "human_RRrearSOAEwf1short":
-            mag_freqs = [2.14, 3.26, 3.73, 4.41, 5.56, 6.47, 7.66, 11.72]
+            psd_freqs = [2.14, 3.26, 3.73, 4.41, 5.56, 6.47, 7.66, 11.72]
             C_freqs = [
                 2.139,
                 3.262,
@@ -1259,7 +1259,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 11.715,
             ]
         case "human_TH13RearwaveformSOAEshort":
-            mag_freqs = [0.68, 0.91, 1.44, 1.52, 1.67, 2.04, 2.28, 2.70, 6.04]
+            psd_freqs = [0.68, 0.91, 1.44, 1.52, 1.67, 2.04, 2.28, 2.70, 6.04]
             C_freqs = [
                 0.373,
                 0.647,
@@ -1285,7 +1285,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 7.293,
             ]
         case "human_KClearSOAEwf2":
-            mag_freqs = [1.22, 1.5, 1.88, 3.79]
+            psd_freqs = [1.22, 1.5, 1.88, 3.79]
             C_freqs = [
                 0.704,
                 0.880,
@@ -1300,7 +1300,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 3.791,
             ]
         case "human_AP7RearwaveformSOAEshort":
-            mag_freqs = [
+            psd_freqs = [
                 0.58,
                 1.18,
                 1.37,
@@ -1335,7 +1335,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 3.918,
             ]
         case "human_coNW_fgF090728R":
-            mag_freqs = [1.578, 3.65, 3.86, 4.18, 4.7, 7.05, 7.34, 9.07]
+            psd_freqs = [1.578, 3.65, 3.86, 4.18, 4.7, 7.05, 7.34, 9.07]
             C_freqs = [
                 0.569,
                 0.618,
@@ -1362,7 +1362,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 9.074,
             ]
         case "human_TH21RearwaveformSOAE":
-            mag_freqs = [
+            psd_freqs = [
                 1.41,
                 1.72,
                 1.88,
@@ -1394,7 +1394,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 4.135,
             ]
         case "human_AVGrearSOAEwf2":
-            mag_freqs = [1.71, 1.85, 2.24, 2.43, 2.46, 2.64, 2.98, 3.54, 4.35, 6.58]
+            psd_freqs = [1.71, 1.85, 2.24, 2.43, 2.46, 2.64, 2.98, 3.54, 4.35, 6.58]
             C_freqs = [
                 0.688,
                 1.263,
@@ -1414,7 +1414,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 6.576,
             ]
         case "human_FMlearSOAEwfA01":
-            mag_freqs = [1.55, 1.72, 2.02, 2.24, 2.76, 3.04, 3.17, 4.01]
+            psd_freqs = [1.55, 1.72, 2.02, 2.24, 2.76, 3.04, 3.17, 4.01]
             C_freqs = [
                 0.308,
                 0.575,
@@ -1441,7 +1441,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 4.179,
             ]
         case "human_JBrearSOAEwf2short":
-            mag_freqs = [1.23, 1.435, 1.7, 1.97, 3.56, 4.06, 7.28]
+            psd_freqs = [1.23, 1.435, 1.7, 1.97, 3.56, 4.06, 7.28]
             C_freqs = [
                 0.732,
                 0.790,
@@ -1457,7 +1457,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 7.281,
             ]
         case "human_LSrearSOAEwf1short":
-            mag_freqs = [0.73, 0.99, 1.64, 2.22, 3.12]
+            psd_freqs = [0.73, 0.99, 1.64, 2.22, 3.12]
             C_freqs = [
                 0.288,
                 0.734,
@@ -1471,7 +1471,7 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 5.011,
             ]
         case "human_JIrearSOAEwf2short":
-            mag_freqs = [
+            psd_freqs = [
                 1.29,
                 1.72,
                 1.84,
@@ -1505,76 +1505,76 @@ def get_human_peak_freqs_manual(wf_fn, khz=True):
                 8.685,
             ]
     if not khz:
-        return np.array(mag_freqs)*1000, np.array(C_freqs)*1000
+        return np.array(psd_freqs)*1000, np.array(C_freqs)*1000
     else:
-        return np.array(mag_freqs), np.array(C_freqs)
+        return np.array(psd_freqs), np.array(C_freqs)
 
 
 # # Chris' list before I removed some
 # def get_human_peak_freqs(wf_fn):
 #     match wf_fn:
 #         case "human_TH14RearwaveformSOAEshort":
-#             mag_freqs= [0.6,0.86,0.93,1.26,1.62,2.26,2.83,4.38]
+#             psd_freqs= [0.6,0.86,0.93,1.26,1.62,2.26,2.83,4.38]
 #             C_freqs= [0.433,0.603,0.706,0.861,0.933,1.119,1.191,1.263,1.350,
 #                         1.536,1.623,2.255,2.317,2.699,2.829,3.087,3.446,3.862,4.373,4.524,
 #                         4.723,6.060,6.318]
 #         case "human_RRrearSOAEwf1short":
-#             mag_freqs= [2.14,3.25,3.73,4.17,4.41,5.56,6.47,7.66,11.72]
+#             psd_freqs= [2.14,3.25,3.73,4.17,4.41,5.56,6.47,7.66,11.72]
 #             C_freqs= [0.691,1.496,1.680,1.824,
 #                 2.139,2.468,2.943,3.262,3.461,3.736,4.165,4.412,5.561,
 #                 6.466,7.666,7.839,7.902,8.041,8.372,8.498,
 #                 9.850,10.294,10.351,10.537,11.715]
 #         case "human_TH13RearwaveformSOAEshort":
-#             mag_freqs = [0.68,0.91,1.52,1.67,2.04,2.28,2.70,6.04]
+#             psd_freqs = [0.68,0.91,1.52,1.67,2.04,2.28,2.70,6.04]
 #             C_freqs =[0.373,0.647,0.702,0.847,0.904,0.977,1.092,1.276,1.337,1.435,
 #       1.523,1.595,1.674,1.811,1.925,2.039,2.154,2.284,2.585,2.701,
 #       2.844,3.633,6.044,7.293]
 #         case "human_KClearSOAEwf2":
-#             mag_freqs = [1.23,1.5,1.89,3.8]
+#             psd_freqs = [1.23,1.5,1.89,3.8]
 #             C_freqs = [0.661,0.704,0.880,1.106,1.161,1.220,1.351,1.494,1.881,
 #       1.939,3.040,3.159,3.303,3.791]
 #         case "human_AP7RearwaveformSOAEshort":
-#             mag_freqs = [0.58,1.18,1.27,1.37,2.04,2.54,2.7,3.72,3.92]
+#             psd_freqs = [0.58,1.18,1.27,1.37,2.04,2.54,2.7,3.72,3.92]
 #             C_freqs = [0.366,0.586,0.690,0.790,0.861,1.063,1.178,1.265,1.373,1.794,2.039,
 #       2.168,2.291,2.397,2.542,2.703,2.928,3.116,3.718,3.918]
 #         case "human_coNW_fgF090728R":
-#             mag_freqs = [3.65,3.87,4.7,7.06,7.34,9.08]
+#             psd_freqs = [3.65,3.87,4.7,7.06,7.34,9.08]
 #             C_freqs = [0.569,0.618,0.663,0.734,0.792,0.921,0.992,1.069,
 #       1.135,1.323,1.441,1.510,1.580,1.666,1.773,3.649,
 #       3.862,4.020,4.179,4.493,4.695,5.657,7.047,7.337,
 #       7.625,8.614,9.074]
 #         case "human_TH21RearwaveformSOAE":
-#             mag_freqs = [1.41,1.62,1.72,1.88,2.01,2.14,2.29,2.46,2.61,2.76,3.07,3.27,4.14]
+#             psd_freqs = [1.41,1.62,1.72,1.88,2.01,2.14,2.29,2.46,2.61,2.76,3.07,3.27,4.14]
 #             C_freqs =[1.408,1.494,1.624,1.724,1.881,2.011,2.140,2.297,2.466,2.610,
 #       2.759,2.917,3.075,3.274,4.135]
 #         case "human_AVGrearSOAEwf2":
-#             mag_freqs = [1.71,1.86,2.24,2.43,2.46,2.64,2.98,3.54,4.35,6.58]
+#             psd_freqs = [1.71,1.86,2.24,2.43,2.46,2.64,2.98,3.54,4.35,6.58]
 #             C_freqs = [0.675,0.778,1.135,1.252,1.365,1.566,1.710,1.853,1.997,
 #       2.112,2.240,2.414,2.470,2.642,2.743,2.980,3.347,3.542,
 #       4.350,4.452,6.576]
 #         case "human_FMlearSOAEwfA01":
-#             mag_freqs = [1.56,1.72,2.02,2.24,2.76,3.04,3.17,4.01]
+#             psd_freqs = [1.56,1.72,2.02,2.24,2.76,3.04,3.17,4.01]
 #             C_freqs = [0.308,0.349,0.575,0.653,0.702,0.862,0.905,0.992,1.048,
 #       1.307,1.379,1.481,1.557,1.623,1.721,1.794,1.897,2.023,
 #       2.239,2.757,2.887,3.042,3.173,4.006,4.179]
 #         case "human_JBrearSOAEwf2short":
-#             mag_freqs = [1.23,1.7,1.97,3.56,4.07,7.28]
+#             psd_freqs = [1.23,1.7,1.97,3.56,4.07,7.28]
 #             C_freqs = [0.604,0.732,0.790,0.849,0.891,1.136,1.234,1.436,
 #        1.705,1.969,2.357,3.560,3.869,4.063,
 #        4.148,4.194,4.279,4.379,4.596,
 #        4.983,5.031,6.979,
 #        7.281]
 #         case "human_LSrearSOAEwf1short":
-#             mag_freqs = [0.73,0.99,1.21,1.29,1.64,2,23,3.12]
+#             psd_freqs = [0.73,0.99,1.21,1.29,1.64,2,23,3.12]
 #             C_freqs = [0.288,0.650,0.734,0.993,1.208,1.294,1.639,1.766,
 #        2.111,2.226,3.115,4.335,5.011]
 #         case "human_JIrearSOAEwf2short":
-#             mag_freqs = [1.29,1.58,1.72,1.84,2.34,2.81,3.40,4.05,5.12,5.84,7.93,8.31,8.68]
+#             psd_freqs = [1.29,1.58,1.72,1.84,2.34,2.81,3.40,4.05,5.12,5.84,7.93,8.31,8.68]
 #             C_freqs = [0.171,0.349,0.516,0.704,1.294,1.581,1.724,1.840,2.223,
 #        2.343,2.815,3.074,3.405,4.048,5.123,5.843,6.116,6.963,
 #        7.940,8.314,8.685]
 
-#     return np.array(mag_freqs), np.array(C_freqs)
+#     return np.array(psd_freqs), np.array(C_freqs)
 
 
 "ARO (and preprint?) Peak Picks"
