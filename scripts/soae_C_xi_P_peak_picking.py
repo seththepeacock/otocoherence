@@ -36,10 +36,13 @@ check_C_xi = False
 C_xi_thresh = 0.21
 php = get_params_human_picking()
 
+
+
 # SciPy Peak Picking paramters
 wlen_hz = php["wlen_hz"]
 prominence_C = php["prominence_C"]
 prominence_PSD = php["prominence_psd"]
+
 
 
         
@@ -121,6 +124,11 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
             case _:
                 raise ValueError(f"param_set={param_set} hasn't been defined! (Check commented out section at end?)")
 
+
+        # Check window
+        if win_PSD == "C":
+            win_PSD = pc.get_win(win_meth_C, tau, xi)[0]
+
         C_xi_thresh_str = f", C_xi_thresh={C_xi_thresh}" if check_C_xi else ""
         meth_id = f"{param_set}, {pp_type}{C_xi_thresh_str}, {php["meth_id"]}"
         print(f"Processing {wf_fn}")
@@ -178,9 +186,10 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
                 mode="P",
                 ref_type="time",
             ) 
+            
             psd = pc.get_welch(wf, fs, tau, nfft=tau, hop=hop_PSD, win=win_PSD, avg_exp=2, scaling="density")[1] 
             # Convert to db
-            C_xi_P = 10 * np.log10(C_xi_P) #
+            C_xi_P = 10 * np.log10(C_xi_P) # 10 because C_xi_P has ^2 units
             psd = 10 * np.log10(psd) # 10 because scaling = density (no sqrt taken)
 
         bin_width = f[1] - f[0]
@@ -255,8 +264,8 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
         "Start Plot"
         os.makedirs(os.path.join(dirs["pp_human"], subfolder), exist_ok=True)
         plt.close("all")
-        for fig in ["lf", "hf"]:
-            match fig:
+        for freq_range_zoom in ["lf", "hf"]:
+            match freq_range_zoom:
                 case "lf":
                     xmin, xmax = 500, 8100
                 case "hf":
@@ -270,7 +279,7 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
             ymax_PSD = np.max([75, np.max(C_xi_P[xmin_idx:xmax_idx+1]+5), np.max(psd[xmin_idx:xmax_idx+1]+5)])
             ymin_C, ymax_C = ymin_PSD, ymax_PSD
 
-            plt.figure(fig, figsize=(11, 6))
+            plt.figure(freq_range_zoom, figsize=(11, 6))
             if avg_meth == "mag":
                 C_xi_P_str = rf"$C_\xi^M$" 
                 mag_str = r"AMag"
@@ -391,7 +400,9 @@ for pp_type, param_set, subfolder in pp_params_subfolders:
             plt.suptitle(suptitle, fontsize=8, color=[0.5, 0.5, 0.5])
             plt.tight_layout()
             if output_plots:
-                fig_fp = os.path.join(dirs["pp_human"], subfolder, f"{wf_fn} [{meth_id} - {fig}].jpg")
+                fig_folder = os.path.join(dirs["pp_human"], subfolder, freq_range_zoom)
+                fig_fp = os.path.join(fig_folder, f"{wf_fn} [{meth_id}].jpg")
+                os.makedirs(fig_folder, exist_ok=True)
                 plt.savefig(fig_fp, dpi=500)
             if show_plots:
                 plt.show()

@@ -391,7 +391,8 @@ def get_params_human_picking():
     hop_psd_s = hop_C_s
     win_C = "hann"
     win_meth_C = {"method": "rho", "rho": 1.0, "win_type": win_C}
-    win_psd = win_C
+    # win_meth_C = {"method":"static", "win_type":win_C}
+    win_psd = "C"
     # wf_len_s = get_params_peakc()["wf_len_s"]
     wf_len_s = None
     avg_meth = "power"
@@ -404,7 +405,7 @@ def get_params_human_picking():
     manual_thresh = 50
     if hop_C_s != hop_psd_s:
         raise ValueError("You should change your meth_id!")
-    meth_id=f"prom_C={prominence_C}, prom_psd={prominence_psd}, hpf_meth={get_filter_str(hpf_meth)}, fs={fs}, tau={tau_s*1000}ms, xi={xi_s*1000}ms, hop_C=hop_psd={hop_psd_s*1000}ms, {pc.get_win_meth_str(win_meth_C)}, win_psd={win_psd}, avg_meth={avg_meth}, flim={flim}, wf_len_s={wf_len_s}"
+    meth_id=f"prom_C={prominence_C}, prom_psd={prominence_psd}, {get_filter_str(hpf_meth)}, fs={fs}, tau={tau_s*1000}ms, xi={xi_s*1000}ms, hop={hop_psd_s*1000}ms, {pc.get_win_meth_str(win_meth_C)}, win_psd={win_psd}, avg_meth={avg_meth}, flim={flim}, wf_len_s={wf_len_s}"
     return {
         "hpf_meth":hpf_meth,
         "fs":fs,
@@ -853,7 +854,7 @@ def kaiser_filter(wf, fs, cf=300, df=50, rip=100):
     # filtered_wf = oaconvolve(wf, taps, mode='full')[0:len(wf)] # Same output as lfilter (within machine precision)
     
     # Final choice: mode='same' spreads edge effects evenly to both sides. mode=valid could make sense too, but then output is no longer 60s--it's len(wf)-len(numtaps) so it would change depending on filter params
-    filtered_wf = oaconvolve(wf, taps, mode='same') # This sometimes gives a runtime warning, not sure why
+    filtered_wf = oaconvolve(wf, taps, mode='same')
 
     stop = time.time()
     print(f"Filtering took {stop-start:.3f}s")
