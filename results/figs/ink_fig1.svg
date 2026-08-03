@@ -10,7 +10,7 @@
    inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)"
    sodipodi:docname="ink_fig1.svg"
    xml:space="preserve"
-   inkscape:export-filename="final\Fig1.png"
+   inkscape:export-filename="final\Figure1.png"
    inkscape:export-xdpi="500"
    inkscape:export-ydpi="500"
    xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
@@ -28,7 +28,7 @@
      inkscape:deskcolor="#d1d1d1"
      inkscape:document-units="mm"
      inkscape:zoom="0.72426345"
-     inkscape:cx="422.49819"
+     inkscape:cx="423.18855"
      inkscape:cy="359.67575"
      inkscape:window-width="1920"
      inkscape:window-height="1094"
@@ -109,9 +109,9 @@
          transform="translate(-17.201609,33.86157)"><tspan
            x="6.0895939"
            y="-6.644516"
-           id="tspan5"><tspan
+           id="tspan2"><tspan
              style="font-family:Arial;-inkscape-font-specification:'Arial, Normal'"
-             id="tspan3">A</tspan></tspan></text><text
+             id="tspan1">A</tspan></tspan></text><text
          xml:space="preserve"
          style="font-style:normal;font-variant:normal;font-weight:normal;font-stretch:normal;font-size:39.6666px;line-height:0;font-family:Arial;-inkscape-font-specification:'Arial, Normal';font-variant-ligatures:normal;font-variant-caps:normal;font-variant-numeric:normal;font-variant-east-asian:normal;text-align:start;writing-mode:lr-tb;direction:ltr;text-anchor:start;fill:#000000;stroke-width:0.594999"
          x="-12.27382"
