@@ -44,7 +44,9 @@ def nddho_generator(f_d, gamma=None, q=None, fs=44100, t_max=60, seed=None):
     omega_d = 2 * np.pi * f_d  # Damped critical frequency
     n_samples = round(t_max * fs)
 
-    # We're assuming m = 1 for simplicity (note k = omega_0**2 / m = omega_0**2, so we'll just use omega_0**2)
+    # f_d = omega_d/2pi = (omega_0^2 - gamma^2 / 4)/2pi
+
+    # We're assuming m = 1 for simplicity (note k = omega_0**2 * m = omega_0**2, so we'll just use omega_0**2)
     # omega_d^2 = omega_0^2 - gamma^2 / 4 and gamma = omega_0 / q ==> omega_0 = omega_d / np.sqrt(1 - 1 / (4 * q**2))
 
     # Handle q vs gamma to define the other 
