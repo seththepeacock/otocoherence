@@ -1,0 +1,19 @@
+[project]
+name = "otocoherence"
+version = "1.0.0"
+description = "Analysis code for 'Spontaneous otocoherence of the active ear.'"
+readme = "README.md"
+requires-python = ">=3.13"
+license = {text = "MIT"}
+
+authors = [
+    {name = "Seth N. Peacock"}
+]
+
+dependencies = [
+    "numpy>=2.2.6",
+    "scipy>=1.17.1",
+    "matplotlib>=3.10.3",
+    "pandas>=2.3.0",
+    "phaseco>=2.0.0"
+]

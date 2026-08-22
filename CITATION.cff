@@ -1,0 +1,31 @@
+cff-version: 1.0.0
+message: "If you use the code or data in this repository, please cite the associated article."
+
+title: "Spontaneous otocoherence of the active ear: Analysis Code"
+type: software
+authors:
+  - family-names: "Peacock"
+    given-names: "Seth N."
+    orcid: "https://orcid.org/0009-0009-8421-2580"
+  - family-names: "Vencovský"
+    given-names: "Václav"
+    orcid: "https://orcid.org/0000-0002-5556-0924"
+  - family-names: "Whiley"
+    given-names: "Rebecca E."
+    orcid: "http://orcid.org/0000-0001-9857-0818"
+  - family-names: "Mhatre"
+    given-names: "Natasha"
+    orcid: "http://orcid.org/0000-0002-3618-306X"
+  - family-names: "Bergevin"
+    given-names: "Christopher"
+    orcid: "http://orcid.org/0000-0002-4529-399X"
+
+abstract: "Analysis code associated with 'Spontaneous otocoherence of the active ear.'"
+
+keywords:
+  - "otoacoustic emissions"
+  - "cochlear mechanics"
+  - "active ear"
+  - "auditory signal processing"
+
+url: "https://github.com/seththepeacock/otocoherence"
