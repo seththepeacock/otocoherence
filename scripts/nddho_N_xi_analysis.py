@@ -11,10 +11,11 @@ dirs = get_dirs()
 # Fixed params shared with SOAE analysis
 ppc = get_params_peakc()
 
-T_xi_len_s = 25
+T_xi_len_ss = [0.025, 0.1, 0.5]
+T_xi_len_s = 0.5
 
 # Loop Params
-num_iters = 10
+num_iters = 1
 
 # NDDHO params
 f_ds = [1000, 5000, 10000]
@@ -32,7 +33,7 @@ T_xi_folder = dirs[f"T_xi_{ppc["T_xi_meth"]}_NDDHO"]
 "Plotting Parameters"
 show_plots = 1
 fontsize = 8
-output_spreadsheet = 1
+output_spreadsheet = 0
 plot_scatter = 1
 figsize_ind = (5, 5)
 
@@ -61,7 +62,7 @@ for k_f_d, f_d in enumerate(f_ds):
             wf_len_s = 60
 
             "Filepaths"
-            
+
             # NDDHO WF FP
             nddho_wf_id = f"Q={q}, f_d={f_d}, len={wf_len_s}, fs={fs}, iter={i}"
             wf_fn = f"{nddho_wf_id} [NDDHO WF].pkl"
@@ -125,6 +126,7 @@ for k_f_d, f_d in enumerate(f_ds):
             if plot:
                 plt.close("all")
                 plt.figure(figsize=figsize_ind)
+                plt.title(f"Lorentzian FWHM = {2*fab['gamma_L']:.4g} Hz")
                 plt.plot(f_crop_plus, psd_crop_plus, label='PSD', color='k', lw=2, alpha=0.7)
                 plt.plot(f_crop, lorentz_fit, label="Lorentzian Fit", color='green', lw=10, alpha=0.4)
                 plt.plot(f, psd_filt, label="Filtered", color='purple')
@@ -150,8 +152,10 @@ for k_f_d, f_d in enumerate(f_ds):
                     # Plot ACF
                     plt.plot(lags_full_ms, acf_full, label=r"$P$", color='orange')
                     plt.plot(lags_full_ms, acf_phi_full, label=r"$\phi$", color='purple')
-                    plt.vlines(T_xi*1000, 0, 1, color='orange')
-                    plt.vlines(T_xi_phi*1000, 0, 1, color='purple')
+                    # plt.vlines(T_xi*1000, 0, 1, color='orange')
+                    # plt.vlines(T_xi_phi*1000, 0, 1, color='purple')
+                    for xi_max_s in T_xi_len_ss:
+                        plt.vlines(xi_max_s*1000, 0, 1, color='k')
                     plt.xlabel(r"$\xi$ [ms]")
                     plt.ylabel(r"$C_\xi$")
                     plt.legend()
@@ -171,14 +175,16 @@ for k_f_d, f_d in enumerate(f_ds):
                 plt.close("all")
                 plt.figure(figsize=(12, 8))
                 plt.suptitle(rf"NDDHO $f_d$={f_d}, $Q$={q}, iter={i}")
-                plt.subplot(1, 2, 1)
+                # plt.subplot(1, 2, 1)
+                plt.title(f"Lorentzian FWHM = {2*fab['gamma_L']:.4g} Hz")
                 plotter()
-                plt.xlim(0, 500)
+                # plt.xlim(0, T_xi_len_s*1000)
+                plt.xlim(0, 1000)
                 plt.ylim(0, 1)
-                plt.subplot(1, 2, 2)
-                plotter()
-                plt.xlim(0, xmax_ms)
-                plt.ylim(0, 1)
+                # plt.subplot(1, 2, 2)
+                # plotter()
+                # plt.xlim(0, xmax_ms)
+                # plt.ylim(0, 1)
                 plt.savefig(os.path.join(dirs[f"T_xi_{ppc["T_xi_meth"]}_NDDHO"], f"f_d={f_d}, Q={q}, iter={i} - ACF [{ppc["T_xi_id"]}, {ppc["filt_id"]}, {nddho_wf_id}].jpg"))            
             rows.append(row)
             rows.append(row_phi)
