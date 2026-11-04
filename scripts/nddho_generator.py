@@ -41,10 +41,10 @@ def nddho_generator(f_d, q, fs=44100, t_max=60, seed=None, em=False):
 
     # Define variables
     dt = 1.0 / fs
-    omega_d = 2 * np.pi * f_d  # Damped critical frequency
+    omega_d = 2 * np.pi * f_d  # Damped natural frequency
     n_samples = round(t_max * fs)
 
-    # f_d = omega_d/2pi = (omega_0^2 - gamma^2 / 4)/2pi
+    # f_d = omega_d/2pi = sqrt(omega_0^2 - gamma^2 / 4)/2pi
 
     # We're assuming m = 1 for simplicity (note k = omega_0**2 * m = omega_0**2, so we'll just use omega_0**2)
     # omega_d^2 = omega_0^2 - gamma^2 / 4 and gamma = omega_0 / q ==> omega_0 = omega_d / np.sqrt(1 - 1 / (4 * q**2))
@@ -156,6 +156,7 @@ def nddho_generator(f_d, q, fs=44100, t_max=60, seed=None, em=False):
         # Sample initial state from stationary Gaussian
         kBT = 1 / (2 * gamma)
 
+        # Note that we are just using the continuous time distribution, which is different from the EM discretization's stationary distribution. But this whole branch is just to double-check the exact method anyhow.
         cov_stationary = np.array([
             [kBT / omega_0**2, 0.0],
             [0.0, kBT]
