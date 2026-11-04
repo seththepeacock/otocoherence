@@ -50,12 +50,12 @@ fsz = 16
 flims = {'Anole':[1, 6], 'Human':[1, 10], 'Owl':[1, 12], 'Tokay':[1, 6]}
 plot_xi_max_ss = {'Anole':50, 'Owl':50, 'Tokay':50, 'Human':200}
 
-T_xi_len_ss = [0.025, 0.05, 0.1]
+T_xi_xi_max_ss = [0.025, 0.05, 0.1]
 xi_max_s = 0.1
 
-for T_xi_len_s in T_xi_len_ss:
-    if T_xi_len_s > xi_max_s:
-        raise ValueError("T_xi_len_s can't be longer than xi_max_s!")
+for T_xi_xi_max_s in T_xi_xi_max_ss:
+    if T_xi_xi_max_s > xi_max_s:
+        raise ValueError("T_xi_xi_max_s can't be longer than xi_max_s!")
     rows = []
     for wf_idx in wf_idxs: 
         for species in speciess:
@@ -93,8 +93,8 @@ for T_xi_len_s in T_xi_len_ss:
                 }
             )
 
-            T_xi_thresh = T_xi_threshs[str(T_xi_len_s)]
-            cgram_id = f"{T_xi_len_s*1000:.0f}ms, delta_xi={xi_min_s*1e3:.1f}ms, {pc.get_win_meth_str(win_meth_cgram)}, {get_filter_str(hpf_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_cgram_s*1000:.0f}ms, hop_psd={hop_psd_s*1000:.0f}ms, nfft={nfft_cgram_psd}"
+            T_xi_thresh = T_xi_threshs[str(T_xi_xi_max_s)]
+            cgram_id = f"{T_xi_xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1e3:.1f}ms, {pc.get_win_meth_str(win_meth_cgram)}, {get_filter_str(hpf_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_cgram_s*1000:.0f}ms, hop_psd={hop_psd_s*1000:.0f}ms, nfft={nfft_cgram_psd}"
             T_xi_id = f"{T_xi_meth} {cgram_id}"
 
             # Construct T_xi spectrum
@@ -102,7 +102,7 @@ for T_xi_len_s in T_xi_len_ss:
             T_xis = np.empty(len(f))
             for k in range(len(f)):
                 if T_xi_meth == "int":
-                    T_xis[k] = get_T_xi_int(cgram["colossogram"][:, k], cgram["xis_s"], T_xi_len_s=T_xi_len_s)
+                    T_xis[k] = get_T_xi_int(cgram["colossogram"][:, k], cgram["xis_s"], T_xi_xi_max_s=T_xi_xi_max_s)
                 else:
                     raise ValueError()
                 
@@ -135,7 +135,7 @@ for T_xi_len_s in T_xi_len_ss:
                 plt.scatter(f_plot[~sig_mask_plot], T_xis_plot[~sig_mask_plot], s=s_insig, alpha=alpha_insig, color="purple")
                 # plt.hlines(T_xi_thresh, 0, f[-1], color="purple")
                 # plt.vlines([hpf_cf, fmin], np.min(T_xis_plot), np.max(T_xis_plot), color="red", lw=1)
-                plt.ylabel(rf"$T_\xi^{{{T_xi_meth}}}$ [{T_xi_len_s*1000:.0f}ms]", color="purple", fontsize=fsz)
+                plt.ylabel(rf"$T_\xi^{{{T_xi_meth}}}$ [{T_xi_xi_max_s*1000:.0f}ms]", color="purple", fontsize=fsz)
 
                 plt.title(f"{species} {wf_idx} [{wf_fn}]", fontsize=fsz)
                 plt.tight_layout()
@@ -163,7 +163,7 @@ for T_xi_len_s in T_xi_len_ss:
                 plt.close('all')
                 pc.plot_colossogram(cgram)
                 xmin, _ = plt.xlim()
-                xmax = T_xi_len_s * 1000
+                xmax = T_xi_xi_max_s * 1000
                 plt.xlim(xmin, xmax)
                 plt.ylim(flims[species])
                 fn_cgram = f"{species} {wf_idx} Colossogram [{cgram_id}].jpg"

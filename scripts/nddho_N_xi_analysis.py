@@ -11,17 +11,25 @@ dirs = get_dirs()
 # Fixed params shared with SOAE analysis
 ppc = get_params_peakc()
 
-T_xi_len_ss = [0.025, 0.1, 0.5]
-T_xi_len_s = 0.5
+T_xi_xi_max_ss = [0.025, 0.05, 0.1, 0.5]
+T_xi_xi_max_s = 0.025
+
+em = True
+str_em = "EM - " if em else ""
 
 # Loop Params
 num_iters = 1
 
-# NDDHO params
+"NDDHO Parameters"
+
 f_ds = [1000, 5000, 10000]
 # qs = [50, 100, 150, 200, 250, 300]
 # qs = [50, 75, 100, 125, 150, 175, 200]
 qs = [20, 40, 60, 80, 100]
+
+fs = 44100
+fs = 5000000
+wf_len_s = 60
 
 colors = np.concat((get_colors('good'), get_colors('bad'), (get_colors('good'))))
 
@@ -33,7 +41,7 @@ T_xi_folder = dirs[f"T_xi_{ppc["T_xi_meth"]}_NDDHO"]
 "Plotting Parameters"
 show_plots = 1
 fontsize = 8
-output_spreadsheet = 0
+output_spreadsheet = 1
 plot_scatter = 1
 figsize_ind = (5, 5)
 
@@ -56,15 +64,11 @@ for k_f_d, f_d in enumerate(f_ds):
                 f"Q={q} ({k_q+1}/{len(qs)}), f_d={f_d} ({k_f_d+1}/{len(f_ds)}), Iter {i+1}/{num_iters}"
             )
 
-            "NDDHO Parameters"
-
-            fs = 44100
-            wf_len_s = 60
 
             "Filepaths"
 
             # NDDHO WF FP
-            nddho_wf_id = f"Q={q}, f_d={f_d}, len={wf_len_s}, fs={fs}, iter={i}"
+            nddho_wf_id = f"{str_em}Q={q}, f_d={f_d}, len={wf_len_s}, fs={fs}, iter={i}"
             wf_fn = f"{nddho_wf_id} [NDDHO WF].pkl"
 
             wf_fp = os.path.join(pkl_folder, wf_fn)
@@ -76,7 +80,7 @@ for k_f_d, f_d in enumerate(f_ds):
                     wf_x = pickle.load(file)
             else:
                 print(f"Generating NDDHO {wf_fn}")
-                wf_x, wf_y = nddho_generator(f_d, q=q, fs=fs, t_max=wf_len_s)
+                wf_x, wf_y = nddho_generator(f_d, q=q, fs=fs, t_max=wf_len_s, em=em)
                 with open(wf_fp, "wb") as file:
                     pickle.dump(wf_x, file)
             
@@ -95,7 +99,7 @@ for k_f_d, f_d in enumerate(f_ds):
 
             # Get Lorentzian fits
 
-            fab = fit_and_bpf(wf_x, fs, f, psd, f_d, ppc, T_xi_len_s=T_xi_len_s)
+            fab = fit_and_bpf(wf_x, fs, f, psd, f_d, ppc, T_xi_xi_max_s=T_xi_xi_max_s)
             f_crop = fab['f_crop']
             crop_idxs = fab['crop_idxs']
             lorentz_fit = fab['lorentz_fit']
@@ -131,15 +135,15 @@ for k_f_d, f_d in enumerate(f_ds):
                 plt.plot(f_crop, lorentz_fit, label="Lorentzian Fit", color='green', lw=10, alpha=0.4)
                 plt.plot(f, psd_filt, label="Filtered", color='purple')
                 plt.ylabel("PSD")
-                plt.legend()
+                plt.legend(loc="upper left")
                 plt.xlim(f_crop_plus[[0, -1]])
-                plt.savefig(os.path.join(psd_folder, f"NDDHO {f_d} Hz, Q={q}, i={i} [{ppc["filt_id"]}] - PSD"))
+                plt.savefig(os.path.join(psd_folder, f"NDDHO {f_d} Hz, Q={q}, i={i}, fs={fs} {str_em}[{ppc["filt_id"]}] - PSD"))
 
             # Get ACF and lags from fab
             acf = fab["acf"]
             acf_phi = fab["acf_phi"]
             lags_s = fab["lags_s"]
-            # Get full acf (not cropped to T_xi_len_s) for plotting too
+            # Get full acf (not cropped to T_xi_xi_max_s) for plotting too
             acf_full = fab['acf_full']
             acf_phi_full = fab['acf_phi_full']
             lags_full_s = fab['lags_full_s']
@@ -154,11 +158,11 @@ for k_f_d, f_d in enumerate(f_ds):
                     plt.plot(lags_full_ms, acf_phi_full, label=r"$\phi$", color='purple')
                     # plt.vlines(T_xi*1000, 0, 1, color='orange')
                     # plt.vlines(T_xi_phi*1000, 0, 1, color='purple')
-                    for xi_max_s in T_xi_len_ss:
+                    for xi_max_s in T_xi_xi_max_ss:
                         plt.vlines(xi_max_s*1000, 0, 1, color='k')
                     plt.xlabel(r"$\xi$ [ms]")
                     plt.ylabel(r"$C_\xi$")
-                    plt.legend()
+                    plt.legend(loc="upper right")
                 xmax_ms = np.max([T_xi, T_xi_phi])*2*1000
                 N_xi = T_xi * f_d
                 N_xi_phi = T_xi_phi * f_d
@@ -178,14 +182,14 @@ for k_f_d, f_d in enumerate(f_ds):
                 # plt.subplot(1, 2, 1)
                 plt.title(f"Lorentzian FWHM = {2*fab['gamma_L']:.4g} Hz")
                 plotter()
-                # plt.xlim(0, T_xi_len_s*1000)
-                plt.xlim(0, 1000)
+                # plt.xlim(0, T_xi_xi_max_s*1000)
+                plt.xlim(0, 500)
                 plt.ylim(0, 1)
                 # plt.subplot(1, 2, 2)
                 # plotter()
                 # plt.xlim(0, xmax_ms)
                 # plt.ylim(0, 1)
-                plt.savefig(os.path.join(dirs[f"T_xi_{ppc["T_xi_meth"]}_NDDHO"], f"f_d={f_d}, Q={q}, iter={i} - ACF [{ppc["T_xi_id"]}, {ppc["filt_id"]}, {nddho_wf_id}].jpg"))            
+                plt.savefig(os.path.join(dirs[f"T_xi_{ppc["T_xi_meth"]}_NDDHO"], f"f_d={f_d}, Q={q}, iter={i} {str_em}- ACF [{ppc["T_xi_id"]}, {ppc["filt_id"]}, {nddho_wf_id}].jpg"))            
             rows.append(row)
             rows.append(row_phi)
 
@@ -193,7 +197,7 @@ for k_f_d, f_d in enumerate(f_ds):
 if output_spreadsheet:
     # Save parameter data as xlsx
     df_fitted_params = pd.DataFrame(rows)
-    spreadsheet_fn = os.path.join(dirs["results"], rf"NDDHO N_xi Data [T_xi_len_s={T_xi_len_s}, Qs={qs}, {ppc["T_xi_id"]}, {ppc["filt_id"]}].xlsx")
+    spreadsheet_fn = os.path.join(dirs["results"], rf"{str_em}NDDHO N_xi Data [T_xi_xi_max_s={T_xi_xi_max_s}, Qs={qs}, {ppc["T_xi_id"]}, {ppc["filt_id"]}].xlsx")
     print(f"Saving to {spreadsheet_fn}")
     df_fitted_params.to_excel(spreadsheet_fn, index=False)
 

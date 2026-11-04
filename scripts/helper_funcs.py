@@ -288,12 +288,12 @@ def get_params_cgram(verbose=True):
 
     ppc = get_params_peakc()
     T_xi_meth = ppc["T_xi_meth"]
-    T_xi_len_s = ppc["T_xi_len_s"]
+    T_xi_xi_max_s = ppc["T_xi_xi_max_s"]
     mode = ppc["mode"]
     wf_len_s = ppc["wf_len_s"]
 
-    if xi_max_s != T_xi_len_s:
-        raise ValueError("You have a disagreement between xi_max_s and T_xi_len_s parameters...")
+    if xi_max_s != T_xi_xi_max_s:
+        raise ValueError("You have a disagreement between xi_max_s and T_xi_xi_max_s parameters...")
 
     pcg = {
         'wf_len_s': wf_len_s,
@@ -308,13 +308,13 @@ def get_params_cgram(verbose=True):
         'xi_min_s': xi_min_s,
         "delta_xi_s": delta_xi_s,
         'T_xi_meth': T_xi_meth,
-        "T_xi_len_s":T_xi_len_s,
+        "T_xi_xi_max_s":T_xi_xi_max_s,
         'xi_max_s': xi_max_s
     }
     # Add final ids
     meth_id_cgram = f"cgram {pcg['T_xi_meth']} {pcg['xi_max_s']*1000:.0f}ms, delta_xi={pcg['delta_xi_s']*1000}ms, {pc.get_win_meth_str(pcg['win_meth_cgram'])}, {get_filter_str(pcg['hpf_meth'])}, tau={pcg['tau_s']*1000:.0f}ms, hop={pcg['hop_cgram_s']*1000:.0f}ms, hop_psd={pcg['hop_psd_s']*1000:.0f}ms, nfft={pcg['nfft']}"
     pcg["meth_id"] = meth_id_cgram
-    T_xi_id = f"{T_xi_meth} {T_xi_len_s*1000:.0f}ms"
+    T_xi_id = f"{T_xi_meth} {T_xi_xi_max_s*1000:.0f}ms"
     pcg["T_xi_id"] = T_xi_id
 
     return pcg
@@ -328,7 +328,7 @@ def get_params_peakc():
 
     # ---T_xi Extraction---
     T_xi_meth = "int"
-    T_xi_len_s = 0.025
+    T_xi_xi_max_s = 0.025
     mode = "phi"
 
     # ---Lorentzian Fitting and Bandpass Filtering---
@@ -361,7 +361,7 @@ def get_params_peakc():
         'mode':mode,
 
         'T_xi_meth': T_xi_meth,
-        "T_xi_len_s": T_xi_len_s,
+        "T_xi_xi_max_s": T_xi_xi_max_s,
 
         'crop_bw': crop_bw,
         'bw_filt_thresh': bw_filt_thresh,
@@ -375,7 +375,7 @@ def get_params_peakc():
     # Add final ids
     filt_id = f"bw={ppc['bw_filt_thresh']*100:.0f}p max, kaiser, df={ppc['bpf_params']["df"]}hz, rip={ppc['bpf_params']["rip"]}db, crop={ppc["crop_bw"]}hz, tau={ppc["tau_s"]*1000:.0f}ms, hop_psd={ppc["hop_s"]*1000:.0f}ms, nfft={ppc["nfft"]}, win={ppc["win_type"]}"
     ppc["filt_id"] = filt_id
-    T_xi_id = f"int {ppc["T_xi_len_s"]*1000:.0f}ms"
+    T_xi_id = f"int {ppc["T_xi_xi_max_s"]*1000:.0f}ms"
     ppc["T_xi_id"] = T_xi_id
     return ppc
 
@@ -428,9 +428,9 @@ def get_params_human_picking():
     }
 
 
-def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_len_s=None):
-    if T_xi_len_s is None:
-        T_xi_len_s = ppc['T_xi_len_s']
+def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_xi_max_s=None):
+    if T_xi_xi_max_s is None:
+        T_xi_xi_max_s = ppc['T_xi_xi_max_s']
 
     # Deal with different f0 definitions
     f0_max = f[np.argmin(np.abs(f-f0_max_saved))]
@@ -476,8 +476,8 @@ def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_len_s=None):
     # Convert to seconds
     lags_full_s = lags_full / fs
     
-    # Crop acf and lags to T_xi_len_s
-    max_lag_idx = np.argmin(np.abs(lags_full-T_xi_len_s*fs)) # Final lag is max_lag_s (inclusive)
+    # Crop acf and lags to T_xi_xi_max_s
+    max_lag_idx = np.argmin(np.abs(lags_full-T_xi_xi_max_s*fs)) # Final lag is max_lag_s (inclusive)
     lags = lags_full[:max_lag_idx+1]
     lags_s = lags_full_s[:max_lag_idx+1]
     acf = acf_full[:max_lag_idx+1]
@@ -1035,7 +1035,7 @@ def get_T_xi_eta(acf, lags_s, eta=0.5, sig_thresh=0.1, max_lag_s=None):
     T_xi = lags_s[T_xi_idx]
     return T_xi
 
-def get_T_xi_int(acf, lags_s, T_xi_len_s=None):
+def get_T_xi_int(acf, lags_s, T_xi_xi_max_s=None):
     delta_x = lags_s[1]-lags_s[0]
     # Check lags_s makes sense
     if np.any(lags_s < 0) or np.any(lags_s[1:])==0:
@@ -1045,11 +1045,11 @@ def get_T_xi_int(acf, lags_s, T_xi_len_s=None):
         raise ValueError("lags_s has inconsistent steps!")
 
     # See if we want to restrict the ACF range
-    if T_xi_len_s is not None:
-        if T_xi_len_s > lags_s[-1]:
-            raise ValueError("T_xi_len_s can't be longer than the longer xi_max_s!")
+    if T_xi_xi_max_s is not None:
+        if T_xi_xi_max_s > lags_s[-1]:
+            raise ValueError("T_xi_xi_max_s can't be longer than the longer xi_max_s!")
 
-        max_idx = np.argmin(np.abs(lags_s-T_xi_len_s))
+        max_idx = np.argmin(np.abs(lags_s-T_xi_xi_max_s))
         acf = acf[0:max_idx+1] # Include the max lag
     # Otherwise we assume we want to integrate the provided ACF
     

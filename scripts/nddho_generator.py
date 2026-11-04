@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 
 
-def nddho_generator(f_d, gamma=None, q=None, fs=44100, t_max=60, seed=None):
+def nddho_generator(f_d, q, fs=44100, t_max=60, seed=None, em=False):
     """
     Generate a damped noise-driven harmonic oscillator (NDDHO) waveform
     using the exact discrete-time update scheme of Nørrelykke & Flyvbjerg.
@@ -49,93 +49,138 @@ def nddho_generator(f_d, gamma=None, q=None, fs=44100, t_max=60, seed=None):
     # We're assuming m = 1 for simplicity (note k = omega_0**2 * m = omega_0**2, so we'll just use omega_0**2)
     # omega_d^2 = omega_0^2 - gamma^2 / 4 and gamma = omega_0 / q ==> omega_0 = omega_d / np.sqrt(1 - 1 / (4 * q**2))
 
-    # Handle q vs gamma to define the other 
-    if (gamma is not None and q is not None) or (gamma is None and q is None):
-        raise ValueError("Must have exactly one of gamma and Q!")
-    elif q is not None:
-        omega_0 = omega_d / np.sqrt(1 - 1 / (4 * q**2))
-        gamma = omega_0 / q
-        # We also have gamma = omega_d / np.sqrt(q**2-1/4)
-    elif gamma is not None:
-        omega_0 = np.sqrt(gamma**2+omega_d**2)
-        q = omega_0 / gamma
-        
-
-    
     if q <= 1/2:
-        raise ValueError(f"Can't handle the underdamped case Q={q} <= 1/2!")
+        raise ValueError(f"Only supports the underdamped case Q={q} > 1/2!")
     
-    # Since their driving force is F_therm(t) = sqrt(2 * k_B * T * gamma) eta(t)
-    # and we just want eta(t), we want kBT = 1/(2*gamma)
-    kBT = 1 / (2 * gamma)
-    # Then we define D (Einstein's relation)
-    D = kBT / gamma
-    # Note that now sqrt(2D) / tau = (1/gamma) * gamma = 1
-    omega = np.sqrt(omega_0**2 - (gamma / 2) ** 2)  # damped critical frequency
+    omega_0 = omega_d / np.sqrt(1 - 1 / (4 * q**2))
+    gamma = omega_0 / q
+    
+    if not em:
 
-    # Define variables for equivalence with paper
-    tau = 1 / gamma
+        # Since their driving force is F_therm(t) = sqrt(2 * k_B * T * gamma) eta(t)
+        # and we just want eta(t), we want kBT = 1/(2*gamma)
+        kBT = 1 / (2 * gamma)
+        # Then we define D (Einstein's relation)
+        D = kBT / gamma
+        # Note that now sqrt(2D) / tau = (1/gamma) * gamma = 1
+        omega = np.sqrt(omega_0**2 - (gamma / 2) ** 2)  # damped natural angular frequency
 
-    # Drift matrix M (Eq. 5)
-    M = np.array([[0, -1], [omega_0**2, 1 / tau]])
+        # Define variables for equivalence with paper
+        tau = 1 / gamma
 
-    # Exact update: Matrix exponential
-    Phi = expm(-M * dt)
+        # Drift matrix M (Eq. 5)
+        M = np.array([[0, -1], [omega_0**2, 1 / tau]])
 
-    # Variances/covariances of increments (Eqs. 15–17)
-    expfac = np.exp(-dt / tau)
-    sig_xx2 = (D / (4 * omega**2 * omega_0**2 * tau**3)) * (
-        4 * omega**2 * tau**2
-        + expfac
-        * (
-            np.cos(2 * omega * dt)
-            - 2 * omega * tau * np.sin(2 * omega * dt)
-            - 4 * omega_0**2 * tau**2
+        # Exact update: Matrix exponential
+        Phi = expm(-M * dt)
+
+        # Variances/covariances of increments (Eqs. 15–17)
+        expfac = np.exp(-dt / tau)
+        sig_xx2 = (D / (4 * omega**2 * omega_0**2 * tau**3)) * (
+            4 * omega**2 * tau**2
+            + expfac
+            * (
+                np.cos(2 * omega * dt)
+                - 2 * omega * tau * np.sin(2 * omega * dt)
+                - 4 * omega_0**2 * tau**2
+            )
         )
-    )
-    sig_vv2 = (D / (4 * omega**2 * tau**3)) * (
-        4 * omega**2 * tau**2
-        + expfac
-        * (
-            np.cos(2 * omega * dt)
-            + 2 * omega * tau * np.sin(2 * omega * dt)
-            - 4 * omega_0**2 * tau**2
+        sig_vv2 = (D / (4 * omega**2 * tau**3)) * (
+            4 * omega**2 * tau**2
+            + expfac
+            * (
+                np.cos(2 * omega * dt)
+                + 2 * omega * tau * np.sin(2 * omega * dt)
+                - 4 * omega_0**2 * tau**2
+            )
         )
-    )
-    sig_xv2 = (D / (omega**2 * tau**2)) * expfac * np.sin(omega * dt) ** 2
+        sig_xv2 = (D / (omega**2 * tau**2)) * expfac * np.sin(omega * dt) ** 2
 
-    # Preallocate
-    x = np.empty(n_samples)
-    v = np.empty(n_samples)
+        # Preallocate
+        x = np.empty(n_samples)
+        v = np.empty(n_samples)
 
-    # make rng
-    rng = np.random.default_rng(seed=seed)
+        # make rng
+        rng = np.random.default_rng(seed=seed)
 
-    # sample initial state from stationary Gaussian (zero-mean, cov from Eq.23)
-    cov_stationary = np.array([[kBT / omega_0**2, 0.0], [0.0, kBT]])
-    ic = rng.multivariate_normal(mean=[0.0, 0.0], cov=cov_stationary)
+        # sample initial state from stationary Gaussian (zero-mean, cov from Eq.23)
+        cov_stationary = np.array([[kBT / omega_0**2, 0.0], [0.0, kBT]])
+        ic = rng.multivariate_normal(mean=[0.0, 0.0], cov=cov_stationary)
 
-    # Set initial conditions
-    x[0] = ic[0]
-    v[0] = ic[1]
+        # Set initial conditions
+        x[0] = ic[0]
+        v[0] = ic[1]
 
-    # And set as state
-    state = np.array([x[0], v[0]])
+        # And set as state
+        state = np.array([x[0], v[0]])
 
-    # Correlated Gaussian increments (Eqs. 13–14)
-    xis = rng.normal(size=(n_samples-1))
-    zetas = rng.normal(size=(n_samples-1))
-
-    sig_xx = np.sqrt(sig_xx2)
-    dxs = sig_xx * xis
-    dvs = (sig_xv2 / sig_xx) * xis + np.sqrt(sig_vv2 - (sig_xv2**2) / sig_xx2) * zetas
-    ds = np.stack((dxs, dvs), axis=1)
-
-    # Iterate
-    for j in tqdm(range(1, n_samples), mininterval=1.0):
         # Correlated Gaussian increments (Eqs. 13–14)
-        state = Phi @ state + ds[j-1]  # (Eq. 7)
-        x[j], v[j] = state
+        xis = rng.normal(size=(n_samples-1))
+        zetas = rng.normal(size=(n_samples-1))
+
+        sig_xx = np.sqrt(sig_xx2)
+        dxs = sig_xx * xis
+        dvs = (sig_xv2 / sig_xx) * xis + np.sqrt(sig_vv2 - (sig_xv2**2) / sig_xx2) * zetas
+        ds = np.stack((dxs, dvs), axis=1)
+
+        # Iterate
+        for j in tqdm(range(1, n_samples), mininterval=1.0):
+            # Correlated Gaussian increments (Eqs. 13–14)
+            state = Phi @ state + ds[j-1]  # (Eq. 7)
+            x[j], v[j] = state
+
+    # Euler–Maruyama
+    elif em:
+        if dt >= gamma / omega_0**2:
+            raise ValueError(
+                f"Euler-Maruyama unstable at this timestep. "
+                f"Require fs > {omega_0**2 / gamma:.1f} Hz."
+            )
+    
+        # Drift matrix
+        A = np.array([
+            [0, 1],
+            [-omega_0**2, -gamma]
+        ])
+
+        # Diffusion vector
+        G = np.array([0, 1])
+
+        # Preallocate
+        x = np.empty(n_samples)
+        v = np.empty(n_samples)
+
+        # Random number generator
+        rng = np.random.default_rng(seed=seed)
+
+        # Sample initial state from stationary Gaussian
+        kBT = 1 / (2 * gamma)
+
+        cov_stationary = np.array([
+            [kBT / omega_0**2, 0.0],
+            [0.0, kBT]
+        ])
+
+        ic = rng.multivariate_normal(
+            mean=[0.0, 0.0],
+            cov=cov_stationary
+        )
+
+        state = ic.copy()
+        x[0], v[0] = state
+
+        # Generate Brownian increments
+        dW = np.sqrt(dt) * rng.normal(size=n_samples-1)
+
+        # Euler-Maruyama integration
+        for j in tqdm(range(1, n_samples), mininterval=1.0):
+
+            state = state + A @ state * dt + G * dW[j-1]
+
+            x[j], v[j] = state
+
+    if (~np.isfinite(np.concat([x, v]))).any():
+        raise ValueError("NDDHO output waveform contains infs or NaNs!")
 
     return x, v
 
