@@ -173,7 +173,7 @@ def get_dirs(root="C:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     for subfolder in ["scripts", "results", "pickles", "data"]:
         dirs[subfolder] = os.path.join(dirs["oto"], subfolder)
     # results subsubdirs
-    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_PSDs", "T_xi_int", "figs", "pp_human", "peakc_picked_peaks"]:
+    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_int_cor", "figs", "pp_human", "peakc_picked_peaks", "cumsums"]:
         dirs[results_subfolder] = os.path.join(dirs["results"], results_subfolder)
     for dir in dirs.values():
         os.makedirs(dir, exist_ok=True)
@@ -182,12 +182,12 @@ def get_dirs(root="C:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     dirs["additional_humans"] = os.path.join(dirs["data"], "additional_humans")
     dirs["pickles_NDDHO"] = os.path.join(dirs["pickles"], "NDDHO")
     dirs["psd_NDDHO"] = os.path.join(dirs["psd"], "NDDHO")
-    dirs["T_xi_int_NDDHO"] = os.path.join(dirs["T_xi_int"], "NDDHO")
+    dirs["T_xi_int_cor_NDDHO"] = os.path.join(dirs["T_xi_int_cor"], "NDDHO")
     
     os.makedirs(dirs["additional_humans"], exist_ok=True)
     os.makedirs(dirs["pickles_NDDHO"], exist_ok=True)
     os.makedirs(dirs["psd_NDDHO"], exist_ok=True)
-    os.makedirs(dirs["T_xi_int_NDDHO"], exist_ok=True)
+    # os.makedirs(dirs["T_xi_int_cor_NDDHO"], exist_ok=True)
     return dirs
 
 def get_wf_fn(wf_fn=None, species=None, wf_idx=None):
@@ -241,6 +241,68 @@ def get_picked_peaks(fp_pp, wf_fn=None, species=None, wf_idx=None):
 
     return picked_peaks
 
+
+def get_params_peakc():
+    # ---PSD---
+    tau_s = 0.5
+    nfft = None
+    win_type = 'hann'
+    hop_s = tau_s / 2
+
+    # ---T_xi Extraction---
+    T_xi_meth = "int_cor"
+    beta = 5
+    init_xi_max_s = 0.025
+    mode = "phi"
+
+    # ---Lorentzian Fitting and Bandpass Filtering---
+    crop_bw = 200
+    bw_filt_thresh = 0.1
+    kaiser_rip = 100
+    kaiser_df = 50
+
+    bpf_params = {
+        'type': 'kaiser',
+        'rip': kaiser_rip,
+        'df': kaiser_df
+    }
+
+    wf_len_s = 60
+
+    # Exp fit
+    acf_exp_fit_min = 0.1
+    acf_exp_fit_max = 0.9
+
+    # eta cumulative fit
+    eta = 0.9
+    sig_thresh_eta = 0.1
+    ppc = {
+        'wf_len_s': wf_len_s,
+        'tau_s': tau_s,
+        'nfft': nfft,
+        'win_type': win_type,
+        'hop_s': hop_s,
+        'mode':mode,
+        'T_xi_meth': T_xi_meth,
+        "init_xi_max_s": init_xi_max_s,
+        'crop_bw': crop_bw,
+        'bw_filt_thresh': bw_filt_thresh,
+        'bpf_params': bpf_params,
+        'beta':beta,
+        # Retired params
+        'eta':eta,
+        'sig_thresh_eta':sig_thresh_eta,
+        'acf_exp_fit_min':acf_exp_fit_min,
+        'acf_exp_fit_max':acf_exp_fit_max,
+    }
+    # Add final ids
+    filt_id = f"bw={ppc['bw_filt_thresh']*100:.0f}p max, kaiser, df={ppc['bpf_params']["df"]}hz, rip={ppc['bpf_params']["rip"]}db, crop={ppc["crop_bw"]}hz, tau={ppc["tau_s"]*1000:.0f}ms, hop_psd={ppc["hop_s"]*1000:.0f}ms, nfft={ppc["nfft"]}, win={ppc["win_type"]}"
+    ppc["filt_id"] = filt_id
+    str_beta = f", beta={beta}" if T_xi_meth=="int_cor" else ""
+    T_xi_id = f"{T_xi_meth} {ppc["init_xi_max_s"]*1000:.0f}ms{str_beta}"
+    ppc["T_xi_id"] = T_xi_id
+    return ppc
+
 def get_params_cgram(verbose=True):
 
     hpf_cf = 300
@@ -282,19 +344,30 @@ def get_params_cgram(verbose=True):
     # Same for consistency
     win_type_psd = win_meth_cgram["win_type"]
 
+    # Determine how big/fine of a colossogram to calculate
     xi_min_s = 0.001
     delta_xi_s = xi_min_s
-    xi_max_s = 0.025
+    xi_max_s = 0.5
+
+    # Threshold using GWN
+    gwn_mean = 0.00393
+    gwn_std = 0.000658
+    T_xi_thresh = gwn_mean + gwn_std
+
+    fmin = 500 # filtering out down to 300, and get weird effects around 300 too due to it
 
     ppc = get_params_peakc()
     T_xi_meth = ppc["T_xi_meth"]
-    T_xi_xi_max_s = ppc["T_xi_xi_max_s"]
+    T_xi_id = ppc["T_xi_id"]
+    init_xi_max_s = ppc["init_xi_max_s"]
     mode = ppc["mode"]
     wf_len_s = ppc["wf_len_s"]
+    beta = ppc['beta']
+    T_xi_id = ppc["T_xi_id"]
 
-    if xi_max_s != T_xi_xi_max_s:
-        raise ValueError("You have a disagreement between xi_max_s and T_xi_xi_max_s parameters...")
-
+    if T_xi_id == "int_cor" and xi_max_s < init_xi_max_s:
+        raise ValueError("Must have xi_max_s >= init_xi_max_s (at least)!")
+    cgram_id = f"{xi_max_s*1000:.0f}ms, delta_xi={xi_min_s*1e3:.1f}ms, {pc.get_win_meth_str(win_meth_cgram)}, {get_filter_str(hpf_meth)}, tau={tau_s*1000:.0f}ms, hop={hop_cgram_s*1000:.0f}ms, hop_psd={hop_psd_s*1000:.0f}ms, nfft={nfft}"
     pcg = {
         'wf_len_s': wf_len_s,
         'hpf_meth': hpf_meth,
@@ -308,76 +381,19 @@ def get_params_cgram(verbose=True):
         'xi_min_s': xi_min_s,
         "delta_xi_s": delta_xi_s,
         'T_xi_meth': T_xi_meth,
-        "T_xi_xi_max_s":T_xi_xi_max_s,
-        'xi_max_s': xi_max_s
+        "init_xi_max_s":init_xi_max_s,
+        'xi_max_s': xi_max_s,
+        'beta':beta,
+        "cgram_id":cgram_id,
+        "T_xi_id":T_xi_id,
+        "fmin": fmin,
+        "gwn_mean": gwn_mean,
+        "gwn_std": gwn_std,
+        "T_xi_thresh": T_xi_thresh, 
     }
-    # Add final ids
-    meth_id_cgram = f"cgram {pcg['T_xi_meth']} {pcg['xi_max_s']*1000:.0f}ms, delta_xi={pcg['delta_xi_s']*1000}ms, {pc.get_win_meth_str(pcg['win_meth_cgram'])}, {get_filter_str(pcg['hpf_meth'])}, tau={pcg['tau_s']*1000:.0f}ms, hop={pcg['hop_cgram_s']*1000:.0f}ms, hop_psd={pcg['hop_psd_s']*1000:.0f}ms, nfft={pcg['nfft']}"
-    pcg["meth_id"] = meth_id_cgram
-    T_xi_id = f"{T_xi_meth} {T_xi_xi_max_s*1000:.0f}ms"
-    pcg["T_xi_id"] = T_xi_id
 
     return pcg
 
-def get_params_peakc():
-    # ---PSD---
-    tau_s = 0.5
-    nfft = None
-    win_type = 'hann'
-    hop_s = tau_s / 2
-
-    # ---T_xi Extraction---
-    T_xi_meth = "int"
-    T_xi_xi_max_s = 0.025
-    mode = "phi"
-
-    # ---Lorentzian Fitting and Bandpass Filtering---
-    crop_bw = 200
-    bw_filt_thresh = 0.1
-    kaiser_rip = 100
-    kaiser_df = 50
-
-    bpf_params = {
-        'type': 'kaiser',
-        'rip': kaiser_rip,
-        'df': kaiser_df
-    }
-
-    wf_len_s = 60
-
-    # Exp fit
-    acf_exp_fit_min = 0.1
-    acf_exp_fit_max = 0.9
-
-    # eta cumulative fit
-    eta = 0.9
-    sig_thresh_eta = 0.1
-    ppc = {
-        'wf_len_s': wf_len_s,
-        'tau_s': tau_s,
-        'nfft': nfft,
-        'win_type': win_type,
-        'hop_s': hop_s,
-        'mode':mode,
-
-        'T_xi_meth': T_xi_meth,
-        "T_xi_xi_max_s": T_xi_xi_max_s,
-
-        'crop_bw': crop_bw,
-        'bw_filt_thresh': bw_filt_thresh,
-        'bpf_params': bpf_params,
-        # Retired params
-        'eta':eta,
-        'sig_thresh_eta':sig_thresh_eta,
-        'acf_exp_fit_min':acf_exp_fit_min,
-        'acf_exp_fit_max':acf_exp_fit_max,
-    }
-    # Add final ids
-    filt_id = f"bw={ppc['bw_filt_thresh']*100:.0f}p max, kaiser, df={ppc['bpf_params']["df"]}hz, rip={ppc['bpf_params']["rip"]}db, crop={ppc["crop_bw"]}hz, tau={ppc["tau_s"]*1000:.0f}ms, hop_psd={ppc["hop_s"]*1000:.0f}ms, nfft={ppc["nfft"]}, win={ppc["win_type"]}"
-    ppc["filt_id"] = filt_id
-    T_xi_id = f"int {ppc["T_xi_xi_max_s"]*1000:.0f}ms"
-    ppc["T_xi_id"] = T_xi_id
-    return ppc
 
 def get_params_human_picking():
     pcg = get_params_cgram(verbose=False)
@@ -428,10 +444,7 @@ def get_params_human_picking():
     }
 
 
-def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_xi_max_s=None):
-    if T_xi_xi_max_s is None:
-        T_xi_xi_max_s = ppc['T_xi_xi_max_s']
-
+def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc):
     # Deal with different f0 definitions
     f0_max = f[np.argmin(np.abs(f-f0_max_saved))]
     if np.abs(f0_max-f0_max_saved) > 1e-9:
@@ -476,28 +489,31 @@ def fit_and_bpf(wf, fs, f, psd, f0_max_saved, ppc, T_xi_xi_max_s=None):
     # Convert to seconds
     lags_full_s = lags_full / fs
     
-    # Crop acf and lags to T_xi_xi_max_s
-    max_lag_idx = np.argmin(np.abs(lags_full-T_xi_xi_max_s*fs)) # Final lag is max_lag_s (inclusive)
+    # Crop acf and lags to max_keep_lag_s for memory/computational speed
+    max_keep_lag_s = 10.0
+    max_lag_idx = np.argmin(np.abs(lags_full-max_keep_lag_s*fs)) # Final lag is keep_lag_s (inclusive)
     lags = lags_full[:max_lag_idx+1]
     lags_s = lags_full_s[:max_lag_idx+1]
     acf = acf_full[:max_lag_idx+1]
     acf_phi = acf_phi_full[:max_lag_idx+1]
 
+
+
     # Normalize acf 
     num_terms = N-lags
     num_terms_full = N-lags_full
     var = np.abs(acf[0])/N
-    acf, acf_full = np.abs(acf)/(num_terms*var), np.abs(acf_full)/(num_terms_full*var)
-    acf_phi, acf_phi_full = np.abs(acf_phi) / num_terms, np.abs(acf_phi_full) / num_terms_full
+    acf = np.abs(acf)/(num_terms*var)
+    acf_phi = np.abs(acf_phi) / num_terms
 
 
     return {
         'acf':acf,
         'acf_phi':acf_phi,
         'lags_s':lags_s,
-        'acf_full':acf_full,
-        'acf_phi_full':acf_phi_full,
-        'lags_full_s':lags_full_s,
+        # 'acf_full':acf_full,
+        # 'acf_phi_full':acf_phi_full,
+        # 'lags_full_s':lags_full_s,
         'wf_filt':wf_filt,
         'f0_fit':f0_fit,
         'f_crop':f_crop,
@@ -1035,7 +1051,24 @@ def get_T_xi_eta(acf, lags_s, eta=0.5, sig_thresh=0.1, max_lag_s=None):
     T_xi = lags_s[T_xi_idx]
     return T_xi
 
-def get_T_xi_int(acf, lags_s, T_xi_xi_max_s=None):
+def get_T_xi_int_cor(acf, lags_s, init_xi_max_s, beta):
+    # First, estimate T_xi_int naively
+    T_xi_est = get_T_xi_int(acf, lags_s, T_xi_xi_max_s=init_xi_max_s, used_purposefully=True)
+    # Then estimate again, integrating out to beta*T_xi_est
+    T_xi_xi_max_s_final = beta * T_xi_est
+    if T_xi_xi_max_s_final > lags_s[-1]:
+        raise ValueError("Need to give get_T_xi_int_cor more C_xi to work with!")
+    T_xi = get_T_xi_int(acf, lags_s, T_xi_xi_max_s=T_xi_xi_max_s_final, used_purposefully=True)
+    return T_xi, T_xi_est
+
+
+def get_T_xi_int(acf, lags_s, T_xi_xi_max_s=None, used_purposefully=False):
+    # used_purposefully is to make sure we only use this THROUGH the get_T_xi_int_cor (or are otherwise aware you're doing old method)
+    if not used_purposefully:
+        raise ValueError("You are (likely accidentally) using get_T_xi_int() instead of get_T_xi_int_cor()!")
+    # Leaving it this way to make sure any other ones that explicitly put in T_xi_xi_max_s=None are caught
+    if T_xi_xi_max_s is None:
+        raise ValueError("Must explicitly put in T_xi_xi_max_s!")
     delta_x = lags_s[1]-lags_s[0]
     # Check lags_s makes sense
     if np.any(lags_s < 0) or np.any(lags_s[1:])==0:
@@ -1044,15 +1077,12 @@ def get_T_xi_int(acf, lags_s, T_xi_xi_max_s=None):
         print(lags_s)
         raise ValueError("lags_s has inconsistent steps!")
 
-    # See if we want to restrict the ACF range
-    if T_xi_xi_max_s is not None:
-        if T_xi_xi_max_s > lags_s[-1]:
-            raise ValueError("T_xi_xi_max_s can't be longer than the longer xi_max_s!")
+    if T_xi_xi_max_s > lags_s[-1]:
+        raise ValueError("T_xi_xi_max_s can't be longer than the length of the C_xi/acf you put in! you put in!")
 
-        max_idx = np.argmin(np.abs(lags_s-T_xi_xi_max_s))
-        acf = acf[0:max_idx+1] # Include the max lag
-    # Otherwise we assume we want to integrate the provided ACF
-    
+    max_idx = np.argmin(np.abs(lags_s-T_xi_xi_max_s))
+    acf = acf[0:max_idx+1] # Include the max lag
+  
     T_xi = np.sum(acf)*delta_x
     return T_xi
 
