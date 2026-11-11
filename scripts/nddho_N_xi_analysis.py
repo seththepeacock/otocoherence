@@ -14,14 +14,16 @@ ppc = get_params_peakc()
 init_xi_max_s = ppc["init_xi_max_s"]
 beta = ppc["beta"]
 T_xi_id = ppc["T_xi_id"]
+lam = ppc["lam"]
 
-
+plot_T_xi = True
+plot = True
 
 em = False
 str_em = "EM - " if em else ""
 
 # Loop Params
-num_iters = 2
+num_iters = 10
 
 "NDDHO Parameters"
 
@@ -39,12 +41,11 @@ colors = np.concat((get_colors('good'), get_colors('bad'), (get_colors('good')))
 # Global folders
 pkl_folder = dirs["pickles_NDDHO"]
 psd_folder = dirs["psd_NDDHO"]
-T_xi_folder = dirs[f"T_xi_{ppc["T_xi_meth"]}_NDDHO"]
 
 "Plotting Parameters"
 make_plots = 1
 fontsize = 8
-output_spreadsheet = 0
+output_spreadsheet = 1
 plot_scatter = 1
 figsize_ind = (5, 5)
 
@@ -148,8 +149,14 @@ for k_f_d, f_d in enumerate(f_ds):
             lags_s = fab["lags_s"]
 
             # Get T_xi
-            T_xi, T_xi_est = get_T_xi_int_cor(acf, lags_s, init_xi_max_s, beta)
-            T_xi_phi, T_xi_phi_est = get_T_xi_int_cor(acf_phi, lags_s, init_xi_max_s, beta)
+
+            # T_xi, T_xi_est = get_T_xi_int_cor(acf, lags_s, init_xi_max_s, beta)
+            # T_xi_phi, T_xi_phi_est = get_T_xi_int_cor(acf_phi, lags_s, init_xi_max_s, beta)
+            xi_crop_s = ppc["xi_crop_s"]["NDDHO"]
+            T_xi_plot_subfolder = "nddho"
+            T_xi_plot_fn = f"{nddho_wf_id} - T_xi [{T_xi_id}, {ppc['filt_id']}].jpg"
+            T_xi = get_T_xi_kappa(lags_s, acf, xi_crop_s, lam=lam, subfolder=None, fn=None, plot=False)
+            T_xi_phi = get_T_xi_kappa(lags_s, acf_phi, xi_crop_s, lam=lam, subfolder=T_xi_plot_subfolder, fn=T_xi_plot_fn, plot=plot_T_xi)
 
             N_xi = T_xi * f_d
             N_xi_phi = T_xi_phi * f_d
@@ -160,7 +167,8 @@ for k_f_d, f_d in enumerate(f_ds):
                 r['gamma'] = gamma
                 r['iter'] = i
                 r['Undamped CF'] = np.sqrt(f_d**2 + (gamma / (4*np.pi))**2)
-            if plot:
+            
+            if 0:
                 # Prep to plot T_xi calculation
                 xi_max_s_plot = max([T_xi_phi, init_xi_max_s, T_xi_est * beta]) * 1.2
                 lags_max_plot_idx = np.argmin(np.abs(lags_s-xi_max_s_plot))
@@ -202,20 +210,6 @@ for k_f_d, f_d in enumerate(f_ds):
                 plt.legend(loc='upper right')
                 os.makedirs(f"{dirs[f"T_xi_{ppc["T_xi_meth"]}_NDDHO"]} {T_xi_id}", exist_ok=True)
                 plt.savefig(os.path.join(f"{dirs[f"T_xi_{ppc["T_xi_meth"]}_NDDHO"]} {T_xi_id}", f"f_d={f_d}, Q={q}, iter={i} {str_em}- ACF [{ppc["T_xi_id"]}, {ppc["filt_id"]}, {nddho_wf_id}].jpg"))            
-                if 1:
-                    C_xi = acf_phi
-                    cumsum = np.cumsum(C_xi)
-                    xmax = 100
-                    xmax_idx = np.argmin(np.abs(lags_s-xmax/1000))
-                    plt.close('all')
-                    plt.plot(1000*lags_s[0:xmax_idx+1], cumsum[0:xmax_idx+1])
-                    plt.xlabel(r"$\xi$ [ms]")
-                    plt.ylabel(r"$\int_0^{\xi} C_\xi$")
-                    plt.suptitle("NDDHO (Peak-Centric)")
-                    plt.title(f"{nddho_wf_id}")
-                    folder = os.path.join(dirs[f"cumsums"], f"NDDHO (peak-centric)")
-                    os.makedirs(folder, exist_ok=True)
-                    plt.savefig(os.path.join(folder, f"{nddho_wf_id} - cumsum [{ppc["filt_id"]}].jpg"))
             rows.append(row)
             rows.append(row_phi)
 

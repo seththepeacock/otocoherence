@@ -36,9 +36,9 @@ delta_xi_s = pcg['delta_xi_s']
 T_xi_thresh = pcg["T_xi_thresh"]
 cgram_id = pcg["cgram_id"]
 
-# T_xi_meth = pcg['T_xi_meth']
-T_xi_meth = "int"
-# T_xi_id = pcg["T_xi_id"] # defined in loop
+T_xi_meth = pcg['T_xi_meth']
+T_xi_id = pcg["T_xi_id"]
+lam = pcg["lam"]
 
 
 # Significant T_xi extraction
@@ -47,7 +47,8 @@ fmax = np.inf
 
 # Plot
 dpi=300
-plot=1
+plot=0
+plot_T_xi=1
 alpha_sig = 1
 alpha_insig = 0.25
 s_sig = 5
@@ -64,14 +65,12 @@ plot_cumsum = 1
 
 if init_xi_max_s > xi_max_s:
     raise ValueError("init_xi_max_s can't be longer than xi_max_s!")
-for T_xi_xi_max_s in [0.025]:
+for T_xi_xi_max_s in [None]:
     rows = []
-    T_xi_id = f"{T_xi_meth} {T_xi_xi_max_s*1000:.0f}ms"
-    print(f"Running {T_xi_id}")
     for wf_idx in wf_idxs: 
         for species in speciess:
             if species == "Human":
-                xi_max_s = 3.0
+                xi_max_s = 5.0
             else:
                 xi_max_s = 0.5
             print(f"{species} {wf_idx}")
@@ -116,20 +115,47 @@ for T_xi_xi_max_s in [0.025]:
             picked_peaks = get_picked_peaks(fp_pp, wf_fn)
             all_freqs = np.concatenate((picked_peaks, [500, 1000, 10000, 20000]))
             idxs = np.argmin(np.abs(f[:, None] - all_freqs[None, :]), axis=0)
+            # Params for T_xi extraction
+            xis_s = cgram["xis_s"]
+            xi_crop_s = pcg['xi_crop_s'][species]
+            T_xi_plot_subfolder = "peak-agnostic"
             for k in range(len(f)):
                 # Ignore these as we don't need them anyhow and they may need a longer cgram than we have
                 if f[k] < pcg['fmin']:
                     T_xis[k] = -1
                     continue
                 if T_xi_meth == "int":
-                    T_xi_phi = get_T_xi_int(cgram["colossogram"][:, k], cgram["xis_s"], T_xi_xi_max_s=T_xi_xi_max_s, used_purposefully=True)
+                    T_xi_phi = get_T_xi_int(cgram["colossogram"][:, k], xis_s, T_xi_xi_max_s=T_xi_xi_max_s, used_purposefully=True)
                     T_xis[k] = T_xi_phi
+                elif T_xi_meth == "kappa":
+                    if k in idxs and plot_T_xi:
+                        print(f"Plotting {f[k]} Hz...")
+                        plot_this_one = True
+                        T_xi_plot_fn = f"{species} {wf_idx} {f[k]:.0f} Hz - T_xi [{T_xi_id}, {cgram_id}]"
+                    else:
+                        continue
+                        print(f"Processing {f[k]} Hz...")
+                        plot_this_one = False
+                        T_xi_plot_fn = None
+                    T_xis[k] = get_T_xi_kappa(xis_s, cgram["colossogram"][:, k], xi_crop_s, subfolder=T_xi_plot_subfolder, fn=T_xi_plot_fn, plot=plot_this_one, lam=lam)
+                elif T_xi_meth == "int_nls":
+                    if k in idxs and plot_T_xi:
+                        print(f"Plotting {f[k]} Hz...")
+                        plot_this_one = True
+                        T_xi_plot_fn = f"{species} {wf_idx} {f[k]:.0f} Hz - T_xi [{T_xi_id}, {cgram_id}]"
+                    else:
+                        continue
+                        print(f"Processing {f[k]} Hz...")
+                        plot_this_one = False
+                        T_xi_plot_fn = None
+                    
+                    T_xis[k] = get_T_xi_int_nls(xis_s, cgram["colossogram"][:, k], xi_crop_s, subfolder=T_xi_plot_subfolder, fn=T_xi_plot_fn, plot=plot_this_one)
                 elif T_xi_meth == "int_cor":
                     raise ValueError("sure you want to do that")
                     T_xi_phi, T_xi_phi_est = get_T_xi_int_cor(cgram["colossogram"][:, k], cgram["xis_s"], init_xi_max_s, beta)
                     T_xis[k] = T_xi_phi
 
-                    if plot and (k in idxs):
+                    if plot_T_xi and (k in idxs):
                         # Convert from cgram language to ACF language
                         lags_s = cgram['xis_s']
                         acf_phi = cgram["colossogram"][:, k]
@@ -178,7 +204,7 @@ for T_xi_xi_max_s in [0.025]:
                         plt.savefig(os.path.join(dirs[f"T_xi_{T_xi_meth}"], f"Cgram {T_xi_id}", f"{species} {wf_idx} {f[k]:.0f} Hz - ACF [{T_xi_id}, {cgram_id}].jpg"))
 
                 else:
-                    raise ValueError("Only T_xi_meth='int_cor' implemented now to avoid errors!")
+                    raise ValueError(f"T_xi_meth={T_xi_meth} not implemented!")
                 
 
             # Get mask for significance
@@ -187,6 +213,9 @@ for T_xi_xi_max_s in [0.025]:
             T_xis_idxs = np.arange(len(T_xis))
             sig_mask = (T_xis >= T_xi_thresh) & (T_xis_idxs > fmin_idx) & (T_xis_idxs < fmax_idx)
 
+            # Get PSD
+            psd = pc.get_welch(wf=wf_filt, fs=fs, win=win_type_psd, tau=tau_cgram_psd, nfft=nfft_cgram_psd, hop=hop_psd)[1]
+                
             if plot:
                 plt.close('all')
                 fmin_plot, fmax_plot = (np.array(flims[species]))*1000
@@ -196,7 +225,6 @@ for T_xi_xi_max_s in [0.025]:
                 T_xis_plot = T_xis[fmin_idx_plot:fmax_idx_plot]
 
                 # Plot PSD 
-                psd = pc.get_welch(wf=wf_filt, fs=fs, win=win_type_psd, tau=tau_cgram_psd, nfft=nfft_cgram_psd, hop=hop_psd)[1]
                 psd_plot = psd[fmin_idx_plot:fmax_idx_plot]
                 psd_db_plot = 10*np.log10(psd_plot) 
                 plt.ylabel(rf"PSD [dB]", color="orange", fontsize=fsz)
@@ -238,32 +266,8 @@ for T_xi_xi_max_s in [0.025]:
                 plt.xlim(xmin, xmax)
                 plt.ylim(flims[species])
                 fn_cgram = f"{species} {wf_idx} Colossogram [{cgram_id}].jpg"
-                plt.savefig(os.path.join(dirs["cgrams"], fn_cgram), dpi=dpi)
-            if plot_cumsum:
-                xis_s = cgram["xis_s"]
-                for k in idxs:
-                    C_xi = cgram["colossogram"][:, k]
-                    cumsum = np.cumsum(C_xi)
-                    if species == "Human":
-                        xmax = 3000
-                    else:
-                        xmax = 500
-                    xmax_idx = np.argmin(np.abs(xis_s-xmax/1000))
-                    plt.close('all')
-                    plt.plot(1000*xis_s[0:xmax_idx+1], cumsum[0:xmax_idx+1])
-                    plt.xlabel(r"$\xi$ [ms]")
-                    plt.ylabel(r"$\int_0^{\xi} C_\xi$")
-                    plt.suptitle("Peak-Agnostic")
-                    plt.title(f"{species} {wf_idx} - {f[k]:.1f} Hz")
-                    folder = os.path.join(dirs[f"cumsums"], f"peak-agnostic")
-                    os.makedirs(folder, exist_ok=True)
-                    plt.savefig(os.path.join(folder, f"{species} {wf_idx} {f[k]:.0f} Hz - cumsum [peak-agnostic, {cgram_id}].jpg"))
+                plt.savefig(os.path.join(dirs["cgrams"], fn_cgram), dpi=dpi)   
 
-            
-
-
-
-                # Grab a 
 
             # Save data
             # T_xi_sig_idxs = np.flatnonzero(sig_mask)

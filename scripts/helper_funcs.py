@@ -1,6 +1,6 @@
 import numpy as np
 import scipy.io as sio
-import scipy as sp
+from scipy.interpolate import make_smoothing_spline
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -169,11 +169,12 @@ def load_calc_colossogram(
 def get_dirs(root="C:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     dirs = {}
     dirs["oto"] = root
+    ppc = get_params_peakc()
     # Get subfolders
     for subfolder in ["scripts", "results", "pickles", "data"]:
         dirs[subfolder] = os.path.join(dirs["oto"], subfolder)
     # results subsubdirs
-    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_int_cor", "figs", "pp_human", "peakc_picked_peaks", "cumsums"]:
+    for results_subfolder in ["psd", "cgrams", "T_xi_specs", "T_xi_int_cor", ppc{T_xi_meth}, "figs", "pp_human", "peakc_picked_peaks"]:
         dirs[results_subfolder] = os.path.join(dirs["results"], results_subfolder)
     for dir in dirs.values():
         os.makedirs(dir, exist_ok=True)
@@ -182,7 +183,7 @@ def get_dirs(root="C:\\Users\\setht\\Dropbox\\Citadel\\GitHub\\otocoherence"):
     dirs["additional_humans"] = os.path.join(dirs["data"], "additional_humans")
     dirs["pickles_NDDHO"] = os.path.join(dirs["pickles"], "NDDHO")
     dirs["psd_NDDHO"] = os.path.join(dirs["psd"], "NDDHO")
-    dirs["T_xi_int_cor_NDDHO"] = os.path.join(dirs["T_xi_int_cor"], "NDDHO")
+    # dirs["T_xi_int_cor_NDDHO"] = os.path.join(dirs["T_xi_int_cor"], "NDDHO")
     
     os.makedirs(dirs["additional_humans"], exist_ok=True)
     os.makedirs(dirs["pickles_NDDHO"], exist_ok=True)
@@ -250,9 +251,26 @@ def get_params_peakc():
     hop_s = tau_s / 2
 
     # ---T_xi Extraction---
-    T_xi_meth = "int_cor"
-    beta = 5
+    # T_xi_meth = "int_cor"
+    # beta = 5
     init_xi_max_s = 0.025
+    # init_xi_max_s = None
+    beta=None
+    # str_beta = f", beta={beta}" if T_xi_meth=="int_cor" else ""
+    # T_xi_id = f"{T_xi_meth} {ppc["init_xi_max_s"]*1000:.0f}ms{str_beta}"
+    T_xi_meth = "int_nls"
+    # T_xi_meth = "kappa"
+    lam = 1e-4
+    kappa_C_xi_thresh = 1
+    match T_xi_meth:
+        case "kappa":
+            T_xi_id = f"{T_xi_meth}, lam={lam}, thresh={kappa_C_xi_thresh}"
+        case "int_nls":
+            T_xi_id = f"{T_xi_meth}"
+    xi_crop_s_non_human = 0.3
+    xi_crop_s_human = 3.0
+    xi_crop_s = {"Human":xi_crop_s_human, "Anole":xi_crop_s_non_human, "Tokay":xi_crop_s_non_human, "Owl":xi_crop_s_non_human, "NDDHO":xi_crop_s_non_human}
+
     mode = "phi"
 
     # ---Lorentzian Fitting and Bandpass Filtering---
@@ -294,13 +312,15 @@ def get_params_peakc():
         'sig_thresh_eta':sig_thresh_eta,
         'acf_exp_fit_min':acf_exp_fit_min,
         'acf_exp_fit_max':acf_exp_fit_max,
+        "T_xi_id":T_xi_id,
+        "lam":lam,
+        "xi_crop_s":xi_crop_s,
+        "kappa_C_xi_thresh":kappa_C_xi_thresh,
     }
     # Add final ids
     filt_id = f"bw={ppc['bw_filt_thresh']*100:.0f}p max, kaiser, df={ppc['bpf_params']["df"]}hz, rip={ppc['bpf_params']["rip"]}db, crop={ppc["crop_bw"]}hz, tau={ppc["tau_s"]*1000:.0f}ms, hop_psd={ppc["hop_s"]*1000:.0f}ms, nfft={ppc["nfft"]}, win={ppc["win_type"]}"
     ppc["filt_id"] = filt_id
-    str_beta = f", beta={beta}" if T_xi_meth=="int_cor" else ""
-    T_xi_id = f"{T_xi_meth} {ppc["init_xi_max_s"]*1000:.0f}ms{str_beta}"
-    ppc["T_xi_id"] = T_xi_id
+    
     return ppc
 
 def get_params_cgram(verbose=True):
@@ -364,6 +384,7 @@ def get_params_cgram(verbose=True):
     wf_len_s = ppc["wf_len_s"]
     beta = ppc['beta']
     T_xi_id = ppc["T_xi_id"]
+    lam = ppc["lam"]
 
     if T_xi_id == "int_cor" and xi_max_s < init_xi_max_s:
         raise ValueError("Must have xi_max_s >= init_xi_max_s (at least)!")
@@ -390,6 +411,9 @@ def get_params_cgram(verbose=True):
         "gwn_mean": gwn_mean,
         "gwn_std": gwn_std,
         "T_xi_thresh": T_xi_thresh, 
+        "lam":lam,
+        "xi_crop_s":ppc["xi_crop_s"],
+        "kappa_C_xi_thresh":ppc["kappa_C_xi_thresh"]
     }
 
     return pcg
@@ -1033,6 +1057,360 @@ def lorentzian(x, x0, y0, gamma, a):
 
 def exp_decay(x, a, T_xi):
     return a*np.exp(-x/T_xi)
+
+
+from scipy.optimize import curve_fit, brentq
+import numpy as np
+
+
+def get_knee_nls(x, y):
+
+    def model(x, a, b, c):
+        return a * b * (1 - np.exp(-x / b)) + c * x
+
+    # Initial parameter estimates
+    a0 = 1
+    c0 = (y[-1] - y[0]) / (x[-1] - x[0])
+    # Get a VERY rough idea of what b (~T_xi) should be by integrating first bit of it in classic way
+    xi_max_s_rough_est = 0.05  
+    idx = np.argmin(np.abs(x-xi_max_s_rough_est))
+    b0 = np.sum(y[0:idx+1]) * np.sum(x[0:idx+1]) 
+
+    # 0.1 < a < 1 (so exp portion is significant), b > 0, and c > 0 (obvious)
+    popt, _ = curve_fit(
+        model,
+        x,
+        y,
+        p0=[a0, b0, c0],
+        bounds=([0.1, 1e-12, 1e-12], [1, np.inf, np.inf]),
+        maxfev=20000
+    )
+
+    a, b, c = popt
+
+    if a <= c:
+        x_knee = x[0]
+        print("No positive slope crossover exists; using xis_s[0]")
+    else:
+        x_knee = b * np.log(a / c)
+
+    y_fit = model(x, *popt)
+
+    return x_knee, y_fit, popt
+
+
+
+def get_T_xi_int_nls(
+    xis_s,
+    C_xi,
+    xi_crop_s,
+    subfolder=None,
+    fn=None,
+    plot=False,
+):
+    xi_crop_idx = np.argmin(np.abs(xis_s - xi_crop_s))
+    C_xi = C_xi[:xi_crop_idx + 1]
+    xis_s = xis_s[:xi_crop_idx + 1]
+
+    cumsum = np.cumsum(C_xi) * np.diff(xis_s)[0]
+
+    T_xi_xi_max_s, cumsum_fit, popt = get_knee_nls(
+        xis_s, cumsum
+    )
+
+    a, b, c = popt
+
+    T_xi = get_T_xi_int(
+        C_xi,
+        xis_s,
+        T_xi_xi_max_s,
+        used_purposefully=True
+    )
+
+    if plot:
+        if subfolder is None or fn is None:
+            raise ValueError("Need subfolder and fn if plotting!")
+
+        plt.close('all')
+        fig, axes = plt.subplots(2, 2, figsize=(18, 12))
+        axes = axes.flatten()
+
+        # Plot C_xi against xis_s, zoomed to 2x the identified knee.
+        xi_plot_max = min(2 * T_xi_xi_max_s, xis_s[-1])
+        mask = xis_s <= xi_plot_max
+        mask_shade = xis_s <= T_xi_xi_max_s
+
+        axes[0].plot(1e3 * xis_s, C_xi, color="purple")
+        axes[0].fill_between(
+            1e3 * xis_s[mask_shade],
+            C_xi[mask_shade],
+            alpha=0.3
+        )
+        axes[0].axvline(
+            1e3 * T_xi_xi_max_s,
+            color='red',
+            linestyle='--',
+            label=fr'$\xi_{{\max}}={T_xi_xi_max_s*1000:.3g}$ ms'
+        )
+        axes[0].set_title(fr'$T_\xi={T_xi * 1000:.4g}$ ms')
+        axes[0].set_xlabel(r'$\xi$ [ms]')
+        axes[0].set_ylabel(r'$C_\xi$')
+        axes[0].set_ylim(0, 1)
+        axes[0].legend()
+
+        axes[1].plot(
+            1e3 * xis_s[mask],
+            C_xi[mask],
+            color="purple"
+        )
+        axes[1].fill_between(
+            1e3 * xis_s[mask_shade],
+            C_xi[mask_shade],
+            alpha=0.3
+        )
+        axes[1].axvline(
+            1e3 * T_xi_xi_max_s,
+            color='red',
+            linestyle='--',
+            label=fr'$\xi_{{\max}}={T_xi_xi_max_s*1000:.3g}$ ms'
+        )
+        axes[1].set_title('Zoomed')
+        axes[1].set_xlabel(r'$\xi$ [ms]')
+        axes[1].set_ylabel(r'$C_\xi$')
+        axes[1].legend()
+
+        # Fitted function label.
+        fit_label = (
+            fr'$f(x)=ab(1-e^{{-x/b}})+cx$' '\n'
+            fr'$a={a:.3g},\ b={b:.3g},\ c={c:.3g}$'
+        )
+
+        # Plot full cumulative sum and fitted function.
+        axes[2].plot(
+            1e3 * xis_s,
+            cumsum,
+            label="Cumsum",
+            color="blue"
+        )
+        axes[2].plot(
+            1e3 * xis_s,
+            cumsum_fit,
+            label=fit_label,
+            color="green"
+        )
+
+        knee_idx = np.argmin(
+            np.abs(xis_s - T_xi_xi_max_s)
+        )
+
+        axes[2].scatter(
+            1e3 * T_xi_xi_max_s,
+            np.interp(T_xi_xi_max_s, xis_s, cumsum_fit),
+            color='red',
+            marker='*',
+            s=150,
+            zorder=3,
+            label='Identified knee'
+        )
+
+        axes[2].axvline(
+            1e3 * T_xi_xi_max_s,
+            color='red',
+            linestyle='--',
+            alpha=0.6
+        )
+
+        axes[2].set_title('Cumulative sum')
+        axes[2].set_xlabel(r'$\xi$ [ms]')
+        axes[2].set_ylabel(
+            r'$\int_0^\xi C_{\xi_i}\,d\xi_i$'
+        )
+        axes[2].legend()
+
+        # Plot cumulative sum zoomed to 2x the identified knee.
+        axes[3].plot(
+            1e3 * xis_s[mask],
+            cumsum[mask],
+            color="blue",
+            label="Cumsum"
+        )
+        axes[3].plot(
+            1e3 * xis_s[mask],
+            cumsum_fit[mask],
+            label=fit_label,
+            color="green"
+        )
+
+        axes[3].scatter(
+            1e3 * T_xi_xi_max_s,
+            np.interp(T_xi_xi_max_s, xis_s, cumsum_fit),
+            color='red',
+            marker='*',
+            s=150,
+            zorder=3,
+            label='Identified knee'
+        )
+
+        axes[3].axvline(
+            1e3 * T_xi_xi_max_s,
+            color='red',
+            linestyle='--',
+            alpha=0.6
+        )
+
+        axes[3].set_title('Cumulative sum (zoomed)')
+        axes[3].set_xlabel(r'$\xi$ [ms]')
+        axes[3].set_ylabel(
+            r'$\sum_{\xi_i \leq \xi} C_{\xi_i}$'
+        )
+        axes[3].legend()
+
+        fig.tight_layout()
+
+        dirs = get_dirs()
+        folder = os.path.join(dirs["T_xi_int_nls"], subfolder)
+        os.makedirs(folder, exist_ok=True)
+
+        fig.savefig(
+            os.path.join(folder, f"{fn}.jpg"),
+            dpi=300,
+            bbox_inches='tight'
+        )
+        plt.close(fig)
+
+    return T_xi
+
+
+
+def get_knee_kappa(x, y, lam, C_xi, kappa_C_xi_thresh):
+    spl = make_smoothing_spline(x, y, lam=lam)
+
+    dy = spl.derivative(1)(x)
+    d2y = spl.derivative(2)(x)
+    kappa = np.abs(d2y) / (1 + dy**2)**1.5  
+    
+    knee_min_xi_s = 0 # Probably don't actually need this!
+    knee_min_xi_idx = np.argmin(np.abs(x - knee_min_xi_s))
+
+    peaks = find_peaks(kappa[knee_min_xi_idx:])[0] + knee_min_xi_idx
+
+    valid_peaks = peaks[C_xi[peaks] < kappa_C_xi_thresh]
+
+    if len(valid_peaks) == 0:
+        raise ValueError(f"No peaks found with C_xi < {kappa_C_xi_thresh}")
+
+    idx = valid_peaks[0]  # first peak satisfying condition
+    x_knee = x[idx]    
+
+    return x_knee, spl(x), kappa
+
+def get_T_xi_kappa(xis_s, C_xi, xi_crop_s, subfolder=None, fn=None, plot=False, lam=None):
+    xi_crop_idx = np.argmin(np.abs(xis_s-xi_crop_s))
+    C_xi = C_xi[:xi_crop_idx+1]
+    xis_s = xis_s[:xi_crop_idx+1]
+    cumsum = np.cumsum(C_xi) * np.diff(xis_s)[0]
+    kappa_C_xi_thresh = get_params_peakc()["kappa_C_xi_thresh"]
+    T_xi_xi_max_s, cumsum_smoothed, kappa = get_knee_kappa(xis_s, cumsum, lam, C_xi, kappa_C_xi_thresh)
+    T_xi = get_T_xi_int(C_xi, xis_s, T_xi_xi_max_s, used_purposefully=True)
+
+    if plot:
+        if subfolder is None or fn is None:
+            raise ValueError("Need subfolder and fn if plotting!")
+        plt.close('all')
+        fig, axes = plt.subplots(2, 2, figsize=(18, 12))
+        axes = axes.flatten()
+
+        # Plot C_xi against xis_s, zoomed to 2x the identified knee.
+        # Shade the area under the curve from 0 to the identified knee.
+        xi_plot_max = min(2 * T_xi_xi_max_s, xis_s[-1])
+        mask = xis_s <= xi_plot_max
+        mask_shade = xis_s <= T_xi_xi_max_s
+
+        axes[0].plot(1e3*xis_s, C_xi, color="purple")
+        axes[0].fill_between(
+            1e3*xis_s[mask_shade],
+            C_xi[mask_shade],
+            alpha=0.3
+        )
+        axes[0].axvline(
+            1e3*T_xi_xi_max_s,
+            color='red',
+            linestyle='--',
+            label=fr'$\xi_{{\max}}={T_xi_xi_max_s*1000:.3g}$ ms'
+        )
+        axes[0].set_title(fr'$T_\xi={T_xi*1000:.4g}$ ms')
+        axes[0].set_xlabel(r'$\xi$ [ms]')
+        axes[0].set_ylabel(r'$C_\xi$')
+        axes[0].set_ylim(0, 1)
+        axes[0].legend()
+        
+        
+        axes[1].plot(1e3*xis_s[mask], C_xi[mask], color="purple")
+        axes[1].fill_between(
+            1e3*xis_s[mask_shade],
+            C_xi[mask_shade],
+            alpha=0.3
+        )
+        axes[1].axvline(
+            1e3*T_xi_xi_max_s,
+            color='red',
+            linestyle='--',
+            label=fr'$\xi_{{\max}}={T_xi_xi_max_s*1000:.3g}$ ms'
+        )
+        axes[1].set_title(fr'Zoomed')
+        axes[1].set_xlabel(r'$\xi$ [ms]')
+        axes[1].set_ylabel(r'$C_\xi$')
+        axes[1].legend()
+
+        # Plot the full cumulative sum and identify the knee.
+        axes[2].plot(1e3*xis_s, cumsum, label="Cumsum", color="blue")
+        axes[2].plot(1e3*xis_s, cumsum_smoothed, label="Smoothed", color="green")
+        knee_idx = np.argmin(np.abs(xis_s - T_xi_xi_max_s))
+        axes[2].scatter(
+            1e3*xis_s[knee_idx],
+            cumsum_smoothed[knee_idx],
+            color='red',
+            marker='*',
+            s=150,
+            zorder=3,
+            label='Identified knee'
+        )
+        twin1 = axes[2].twinx()
+        twin1.plot(1e3*xis_s, kappa, label=r"$\kappa$", color="orange")
+        twin1.scatter(1e3*xis_s[knee_idx], kappa[knee_idx], color='red', marker='*', s=150, zorder=3)
+        twin1.set_ylabel(r"$\kappa$", color="orange")
+        axes[2].set_title('Cumulative sum')
+        axes[2].set_xlabel(r'$\xi$ [ms]')
+        axes[2].set_ylabel(r'$\int_0^{\xi} C_{\xi_i}$')
+        axes[2].legend()
+
+        # Plot the cumulative sum zoomed to 2x the identified knee.
+        axes[3].plot(1e3*xis_s[mask], cumsum[mask], color="blue")
+        axes[3].plot(1e3*xis_s[mask], cumsum_smoothed[mask], label="Smoothed", color="green")
+        axes[3].scatter(
+            1e3*xis_s[knee_idx],
+            cumsum_smoothed[knee_idx],
+            color='red',
+            marker='*',
+            s=150,
+            zorder=3
+        )
+        twin2 = axes[3].twinx()
+        twin2.plot(1e3*xis_s[mask], kappa[mask], label=r"$\kappa$", color="orange")
+        twin2.scatter(1e3*xis_s[knee_idx], kappa[knee_idx], color='red', marker='*', s=150, zorder=3)
+        twin2.set_ylabel(r"$\kappa$", color="orange")
+        axes[3].set_title('Cumulative sum (zoomed)')
+        axes[3].set_xlabel(r'$\xi$ [ms]')
+        axes[3].set_ylabel(r'$\sum_{\xi_i \leq \xi} C_{\xi_i}$')
+
+        fig.tight_layout()
+        dirs = get_dirs()
+        folder = os.path.join(dirs["T_xi_kappa"], subfolder)
+        os.makedirs(folder, exist_ok=True)
+        fig.savefig(os.path.join(folder, f"{fn}.jpg"),
+                    dpi=300, bbox_inches='tight')
+        plt.close(fig)
+    return T_xi
 
 def get_T_xi_eta(acf, lags_s, eta=0.5, sig_thresh=0.1, max_lag_s=None):
     if max_lag_s is not None:
